@@ -65,9 +65,10 @@ export default function EditorView() {
                       <div className="mb-6">
                         <input
                           type="text"
-                          value={selectedDocument.title}
+                          defaultValue={selectedDocument.title}
                           className="text-2xl font-bold w-full border-none outline-none resize-none bg-transparent"
                           placeholder="Document title..."
+                          readOnly
                         />
                       </div>
 

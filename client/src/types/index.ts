@@ -17,24 +17,24 @@ export interface Document {
   wordCount: number;
   lastModified: Date;
   aiAssistantActive: boolean;
-  context?: any;
-  genre?: string;
-  targetAudience?: string;
+  context: unknown;
+  genre: string | null;
+  targetAudience: string | null;
   createdAt: Date;
 }
 
 export interface AiInteraction {
   id: string;
   userId: string;
-  documentId?: string;
+  documentId: string | null;
   agentType: string;
   inputText: string;
   outputText: string;
-  enhancementType?: string;
-  qualityScore?: string;
-  userRating?: string;
+  enhancementType: string | null;
+  qualityScore: string | null;
+  userRating: string | null;
   isPremiumFeature: boolean;
-  responseTime?: number;
+  responseTime: number | null;
   createdAt: Date;
 }
 
@@ -46,8 +46,8 @@ export interface LearningProgress {
   lessonTitle: string;
   completionPercentage: number;
   isCompleted: boolean;
-  score?: number;
-  timeSpent?: number;
+  score: number | null;
+  timeSpent: number | null;
   lastAccessed: Date;
   createdAt: Date;
 }
@@ -69,8 +69,8 @@ export interface WritingAnalytics {
   wordsWritten: number;
   documentsCreated: number;
   aiAssistsUsed: number;
-  averageQualityScore?: string;
-  timeSpentWriting?: number;
+  averageQualityScore: string | null;
+  timeSpentWriting: number | null;
 }
 
 export type TabType = "editor" | "tutoring" | "analytics";

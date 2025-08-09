@@ -157,8 +157,13 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
     const user: User = {
-      ...insertUser,
       id,
+      username: insertUser.username,
+      email: insertUser.email,
+      password: insertUser.password,
+      subscriptionTier: insertUser.subscriptionTier || "free",
+      usageCount: insertUser.usageCount || 0,
+      maxUsage: insertUser.maxUsage || 5,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -189,8 +194,15 @@ export class MemStorage implements IStorage {
   async createDocument(insertDocument: InsertDocument): Promise<Document> {
     const id = randomUUID();
     const document: Document = {
-      ...insertDocument,
       id,
+      userId: insertDocument.userId,
+      title: insertDocument.title,
+      content: insertDocument.content || "",
+      wordCount: insertDocument.wordCount || 0,
+      aiAssistantActive: insertDocument.aiAssistantActive || false,
+      context: insertDocument.context || null,
+      genre: insertDocument.genre || null,
+      targetAudience: insertDocument.targetAudience || null,
       lastModified: new Date(),
       createdAt: new Date(),
     };
@@ -215,8 +227,17 @@ export class MemStorage implements IStorage {
   async createAiInteraction(insertInteraction: InsertAiInteraction): Promise<AiInteraction> {
     const id = randomUUID();
     const interaction: AiInteraction = {
-      ...insertInteraction,
       id,
+      userId: insertInteraction.userId,
+      documentId: insertInteraction.documentId || null,
+      agentType: insertInteraction.agentType,
+      inputText: insertInteraction.inputText,
+      outputText: insertInteraction.outputText,
+      enhancementType: insertInteraction.enhancementType || null,
+      qualityScore: insertInteraction.qualityScore || null,
+      userRating: insertInteraction.userRating || null,
+      isPremiumFeature: insertInteraction.isPremiumFeature || false,
+      responseTime: insertInteraction.responseTime || null,
       createdAt: new Date(),
     };
     this.aiInteractions.set(id, interaction);
@@ -244,8 +265,15 @@ export class MemStorage implements IStorage {
   async createLearningProgress(insertProgress: InsertLearningProgress): Promise<LearningProgress> {
     const id = randomUUID();
     const progress: LearningProgress = {
-      ...insertProgress,
       id,
+      userId: insertProgress.userId,
+      courseModule: insertProgress.courseModule,
+      lessonId: insertProgress.lessonId,
+      lessonTitle: insertProgress.lessonTitle,
+      completionPercentage: insertProgress.completionPercentage || 0,
+      isCompleted: insertProgress.isCompleted || false,
+      score: insertProgress.score || null,
+      timeSpent: insertProgress.timeSpent || null,
       lastAccessed: new Date(),
       createdAt: new Date(),
     };
@@ -290,8 +318,13 @@ export class MemStorage implements IStorage {
   async createWritingAnalytics(insertAnalytics: InsertWritingAnalytics): Promise<WritingAnalytics> {
     const id = randomUUID();
     const analytics: WritingAnalytics = {
-      ...insertAnalytics,
       id,
+      userId: insertAnalytics.userId,
+      wordsWritten: insertAnalytics.wordsWritten || 0,
+      documentsCreated: insertAnalytics.documentsCreated || 0,
+      aiAssistsUsed: insertAnalytics.aiAssistsUsed || 0,
+      averageQualityScore: insertAnalytics.averageQualityScore || null,
+      timeSpentWriting: insertAnalytics.timeSpentWriting || null,
       date: new Date(),
     };
     this.writingAnalytics.set(id, analytics);
