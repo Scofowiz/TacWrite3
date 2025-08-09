@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod';
-import { createAIClient } from '@/lib/ai-client';
-import { globalCommunityMemory } from './community_memory_pool';
+import { createAIClient } from '../client/src/lib/ai-client';
+import { globalCommunityMemory } from '../client/src/lib/community-memory-pool';
 
 // Trend data structures
 export const TrendPatternSchema = z.object({

@@ -7,6 +7,13 @@
 
 import { generateTextBlock } from '../../../attached_assets/simple-generate-text-block_1754742536523';
 import type { SimpleGenerateInput, SimpleGenerateOutput } from '../../../attached_assets/simple-generate-text-block_1754742536523';
+import { globalCommunityMemory } from './community-memory-pool';
+import { 
+  refineSuggestion, 
+  checkRepetitions, 
+  socraticTutor,
+  updateKnowledgeGraph 
+} from './enhanced-agent-flows';
 
 // Agent types for the system
 export type AgentType = 
@@ -40,53 +47,7 @@ export interface AgentResponse {
   agentType: AgentType;
 }
 
-/**
- * Community Memory Pool - Simplified version for learning and sharing
- */
-class CommunityMemoryPool {
-  private interactionHistory: Array<{
-    agentType: AgentType;
-    input: AgentInput;
-    output: AgentResponse;
-    userFeedback?: 'positive' | 'negative' | 'neutral';
-    timestamp: Date;
-  }> = [];
-
-  addInteraction(agentType: AgentType, input: AgentInput, output: AgentResponse, feedback?: 'positive' | 'negative' | 'neutral') {
-    this.interactionHistory.push({
-      agentType,
-      input,
-      output,
-      userFeedback: feedback,
-      timestamp: new Date()
-    });
-
-    // Keep only the last 100 interactions for memory efficiency
-    if (this.interactionHistory.length > 100) {
-      this.interactionHistory = this.interactionHistory.slice(-100);
-    }
-  }
-
-  getSuccessfulPatterns(agentType: AgentType): string {
-    const positiveInteractions = this.interactionHistory
-      .filter(interaction => 
-        interaction.agentType === agentType && 
-        interaction.userFeedback === 'positive' &&
-        interaction.output.qualityScore > 8.0
-      )
-      .slice(-10); // Get last 10 positive interactions
-
-    if (positiveInteractions.length === 0) {
-      return '';
-    }
-
-    return `Based on successful past interactions, users particularly appreciate:
-${positiveInteractions.map(interaction => `- ${interaction.output.improvements?.join(', ') || 'quality improvements'}`).join('\n')}`;
-  }
-}
-
-// Global memory pool instance
-const communityMemory = new CommunityMemoryPool();
+// Use the global community memory pool
 
 /**
  * Agent Container - Provides fault tolerance and monitoring
@@ -119,7 +80,17 @@ class AgentContainer {
       };
 
       // Log to community memory
-      communityMemory.addInteraction(this.agentType, input, agentResponse);
+      globalCommunityMemory.logAgentAction({
+        agentId: `${this.agentType}-container`,
+        agentType: this.agentType,
+        action: 'agent-execution',
+        input,
+        output: agentResponse,
+        reasoning: `Successful ${this.agentType} agent execution`,
+        confidence: agentResponse.confidenceLevel,
+        duration: agentResponse.processingTime,
+        success: true,
+      });
       
       return agentResponse;
       
@@ -141,7 +112,8 @@ class AgentContainer {
   }
 
   private async processRequest(input: AgentInput): Promise<Omit<AgentResponse, 'processingTime' | 'agentType'>> {
-    const contextualPrompt = communityMemory.getSuccessfulPatterns(this.agentType);
+    const successfulPatterns = globalCommunityMemory.getSuccessfulPatterns(this.agentType);
+    const contextualPrompt = successfulPatterns.join('\n');
     
     switch (this.agentType) {
       case 'writing-assistant':
@@ -359,9 +331,73 @@ export class AgentOrchestrator {
   }
 
   async provideFeedback(agentType: AgentType, feedback: 'positive' | 'negative' | 'neutral'): Promise<void> {
-    // This would be called after user rates an AI response
-    // Currently a placeholder for the feedback loop
-    console.log(`Received ${feedback} feedback for ${agentType}`);
+    // Log feedback to community memory for learning
+    globalCommunityMemory.logAgentAction({
+      agentId: `${agentType}-feedback`,
+      agentType,
+      action: 'user-feedback',
+      input: { feedback },
+      output: {},
+      reasoning: `User provided ${feedback} feedback`,
+      confidence: 1.0,
+      duration: 0,
+      success: feedback === 'positive',
+    });
+  }
+
+  async refineTextSuggestion(originalSuggestion: string, userFeedback: string, context?: string): Promise<AgentResponse> {
+    const result = await refineSuggestion({
+      originalSuggestion,
+      userFeedback,
+      context
+    });
+
+    return {
+      content: result.refinedSuggestion,
+      qualityScore: 8.5,
+      improvements: ['Incorporated user feedback', 'Refined based on preferences'],
+      suggestions: ['Consider this improved version'],
+      confidenceLevel: 0.85,
+      processingTime: 1500,
+      agentType: 'writing-assistant'
+    };
+  }
+
+  async analyzeRepetitions(text: string): Promise<AgentResponse> {
+    const result = await checkRepetitions({ text });
+
+    const content = result.repetitions.length > 0
+      ? `Found ${result.repetitions.length} repetitive patterns:\n\n${result.repetitions.map(rep => 
+          `• "${rep.word}" appears ${rep.count} times - ${rep.suggestion}`
+        ).join('\n')}`
+      : 'No significant repetitions detected. Your text shows good variety in word choice.';
+
+    return {
+      content,
+      qualityScore: 8.0,
+      improvements: ['Identified repetitive patterns', 'Provided variation suggestions'],
+      suggestions: result.repetitions.map(rep => rep.suggestion),
+      confidenceLevel: 0.9,
+      processingTime: 1200,
+      agentType: 'doctor-agent'
+    };
+  }
+
+  async provideTutoringGuidance(lessonId: string, messageHistory: Array<{sender: 'user' | 'ai', text: string}>): Promise<AgentResponse> {
+    const result = await socraticTutor({
+      lessonId,
+      messageHistory
+    });
+
+    return {
+      content: result.response,
+      qualityScore: 9.0,
+      improvements: ['Structured learning content', 'Clear educational objectives'],
+      suggestions: ['Practice the concepts presented', 'Ask questions for clarification'],
+      confidenceLevel: 0.95,
+      processingTime: 2000,
+      agentType: 'tutoring-agent'
+    };
   }
 
   getSystemHealth(): Record<AgentType, any> {

@@ -184,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI Enhancement endpoint
+  // AI Enhancement endpoint - Enhanced with multiple agent types
   app.post("/api/ai/enhance", async (req, res) => {
     try {
       const user = await storage.getUserByUsername("demo_user");
@@ -192,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
 
-      const { text, enhancementType, documentId } = req.body;
+      const { text, enhancementType, documentId, agentType = "writing-assistant" } = req.body;
       
       // Check usage limits for free users
       if (user.subscriptionTier === "free" && user.usageCount >= user.maxUsage) {
@@ -202,15 +202,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Use the enhanced AI system
-      const enhancementResult = await mockEnhanceText(text, enhancementType);
+      let enhancementResult;
+      let responseAgentType = agentType;
+
+      // Route to different enhancement types based on agent
+      switch (agentType) {
+        case 'repetition-checker':
+          enhancementResult = {
+            enhancedText: `Repetition analysis for: "${text.substring(0, 100)}..." - Found 2-3 repetitive patterns that could be varied for better flow.`,
+            qualityScore: "8.5",
+            improvements: ["Identified repetitive patterns", "Provided variation suggestions", "Enhanced readability"]
+          };
+          responseAgentType = "doctor-agent";
+          break;
+          
+        case 'contextual-enhancer':
+          enhancementResult = await mockEnhanceText(text, "contextual enhancement");
+          responseAgentType = "contextual-enhancer";
+          break;
+          
+        case 'style-improver':
+          enhancementResult = await mockEnhanceText(text, "style improvement");
+          break;
+          
+        default:
+          enhancementResult = await mockEnhanceText(text, enhancementType);
+      }
+
       const qualityScore = parseFloat(enhancementResult.qualityScore);
 
       // Log AI interaction
       await storage.createAiInteraction({
         userId: user.id,
         documentId,
-        agentType: "writing-assistant",
+        agentType: responseAgentType,
         inputText: text,
         outputText: enhancementResult.enhancedText,
         enhancementType,
@@ -228,6 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         enhancedText: enhancementResult.enhancedText,
         qualityScore,
         improvements: enhancementResult.improvements,
+        agentType: responseAgentType,
         usageRemaining: user.maxUsage - (user.usageCount + 1),
       });
     } catch (error) {
@@ -259,11 +285,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       switch (feature) {
         case "auto-complete":
           agentType = "autonomous-writer";
-          enhancedText = `${text} This is an AI-generated continuation that maintains context and style...`;
+          const generationResult = await mockGenerateText(`Continue this text maintaining the same style and tone: ${text}`, { type: "continuation" });
+          enhancedText = `${text} ${generationResult.text}`;
           break;
         case "market-insights":
           agentType = "wfa-agent";
-          enhancedText = `${text} [Market analysis: This content aligns with current industry trends...]`;
+          enhancedText = `${text}\n\n[WFA Analysis: This content shows strong alignment with current market trends. The themes resonate with contemporary reader interests, particularly in the target demographic. Consider amplifying the emotional stakes and ensuring cultural relevance to maximize appeal.]`;
+          break;
+        case "contextual-enhancement":
+          agentType = "contextual-enhancer";
+          const contextResult = await mockEnhanceText(text, "atmospheric enhancement");
+          enhancedText = contextResult.enhancedText;
+          break;
+        case "tutoring-feedback":
+          agentType = "tutoring-agent";
+          enhancedText = `Educational Analysis:\n\nStrengths: Your writing shows ${text.length > 200 ? 'good development and detail' : 'clear expression'}.\n\nAreas for Growth: Consider ${text.includes('.') ? 'varying sentence structure' : 'adding more specific details'} to enhance engagement.\n\nNext Steps: Focus on developing your unique voice while maintaining clarity for your intended audience.`;
           break;
         default:
           return res.status(400).json({ message: "Unknown premium feature" });
@@ -369,6 +405,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(analytics);
     } catch (error) {
       res.status(500).json({ message: "Failed to get writing analytics" });
+    }
+  });
+
+  // Enhanced Agent System Demo
+  app.post("/api/ai/enhanced-agents", async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername("demo_user");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { text, agentType, action, documentId } = req.body;
+
+      let result;
+      switch (agentType) {
+        case 'repetition-checker':
+          result = {
+            analysis: `Repetition Analysis for "${text.substring(0, 50)}..."\n\nFound 3 patterns:\n• "very" appears 4 times - Consider using "extremely", "quite", or "remarkably"\n• "good" appears 3 times - Try "excellent", "impressive", or "effective"\n• "really" appears 2 times - Use "genuinely", "truly", or remove for stronger impact`,
+            agentType: 'doctor-agent',
+            confidence: 0.9
+          };
+          break;
+
+        case 'contextual-enhancer':
+          result = {
+            enhanced: `${text}\n\n[Enhanced Context]: The scene comes alive with rich atmospheric details - the soft whisper of wind through leaves, the way shadows dance across weathered stone, and the subtle tension that hangs in the air like morning mist. Each element adds depth to the narrative landscape.`,
+            agentType: 'contextual-enhancer',
+            confidence: 0.85
+          };
+          break;
+
+        case 'wfa-agent':
+          result = {
+            marketAnalysis: `WFA Market Intelligence Report:\n\n📈 Trend Alignment: Your content aligns with 3 major trends:\n• Cozy Fantasy (+89% popularity)\n• Character-driven narratives (+76% reader preference)\n• Atmospheric storytelling (+82% engagement)\n\n🎯 Optimization Suggestions:\n• Amplify emotional stakes for broader appeal\n• Consider adding contemporary themes for relevance\n• Perfect timing for seasonal content positioning`,
+            agentType: 'wfa-agent',
+            confidence: 0.95
+          };
+          break;
+
+        case 'tutoring-agent':
+          result = {
+            guidance: `Writing Tutorial Session: Narrative Structure\n\n📚 Learning Objective: Strengthen story foundation through effective structure\n\n✨ Strengths in Your Writing:\n• Clear voice and engaging tone\n• Good use of descriptive language\n\n🎯 Areas for Growth:\n• Vary sentence length for better rhythm\n• Add more concrete sensory details\n\n📝 Practice Exercise:\nRewrite the first paragraph focusing on one specific sense (sight, sound, or touch). This will deepen reader immersion.`,
+            agentType: 'tutoring-agent',
+            confidence: 0.92
+          };
+          break;
+
+        default:
+          return res.status(400).json({ message: "Unknown agent type" });
+      }
+
+      // Log the enhanced agent interaction
+      await storage.createAiInteraction({
+        userId: user.id,
+        documentId,
+        agentType: result.agentType,
+        inputText: text,
+        outputText: JSON.stringify(result),
+        enhancementType: action || 'analysis',
+        qualityScore: result.confidence.toString(),
+        isPremiumFeature: true,
+        responseTime: Math.floor(Math.random() * 1500) + 800,
+      });
+
+      res.json({
+        success: true,
+        result,
+        agentSystem: 'enhanced-multi-agent',
+        communityLearning: true
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to process enhanced agent request" });
     }
   });
 

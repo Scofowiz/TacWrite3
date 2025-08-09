@@ -14,8 +14,8 @@
  */
 
 import { z } from 'zod';
-import { createAIClient } from '@/lib/ai-client';
-import { globalCommunityMemory } from './community_memory_pool';
+import { createAIClient } from '../client/src/lib/ai-client';
+import { globalCommunityMemory } from '../client/src/lib/community-memory-pool';
 
 // Learning session state tracking
 export const LearningSessionSchema = z.object({

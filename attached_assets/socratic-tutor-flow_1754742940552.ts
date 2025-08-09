@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { createAIClient } from '@/lib/ai-client';
+import { createAIClient } from '../client/src/lib/ai-client';
 
 const MessageSchema = z.object({
   sender: z.enum(['user', 'ai']),

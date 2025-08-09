@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { createAIClient } from '@/lib/ai-client';
+import { createAIClient } from '../client/src/lib/ai-client';
 
 const RepetitionCheckInputSchema = z.object({
   text: z.string().describe('The text to be analyzed for repetitions.'),

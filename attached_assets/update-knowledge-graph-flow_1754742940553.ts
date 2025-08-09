@@ -8,8 +8,8 @@
  */
 
 import { z } from 'zod';
-import { createAIClient } from '@/lib/ai-client';
-import { KnowledgeGraphSchema } from '@/ai/schemas';
+import { createAIClient } from '../client/src/lib/ai-client';
+import { KnowledgeGraphSchema } from '../client/src/lib/ai-schemas';
 
 const UpdateKnowledgeGraphInputSchema = z.object({
   documentContent: z.string().describe('The full content of the document to be analyzed.'),

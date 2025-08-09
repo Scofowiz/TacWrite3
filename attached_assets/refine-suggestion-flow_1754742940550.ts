@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { createAIClient } from '@/lib/ai-client';
+import { createAIClient } from '../client/src/lib/ai-client';
 
 const RefineSuggestionInputSchema = z.object({
   originalSuggestion: z.string().describe('The original AI-generated text suggestion that the user wants to refine.'),
