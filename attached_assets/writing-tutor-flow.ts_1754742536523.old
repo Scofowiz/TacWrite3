@@ -1,0 +1,56 @@
+
+/**
+ * @fileOverview A flow for providing writing tutor feedback on a text selection.
+ *
+ * - writingTutor - A function that analyzes a text selection and provides feedback.
+ * - WritingTutorInput - The input type for the writingTutor function.
+ * - WritingTutorOutput - The return type for the writingTutor function.
+ */
+
+import { z } from 'zod';
+import { createAIClient } from '@/lib/ai-client';
+
+const WritingTutorInputSchema = z.object({
+  text: z.string().describe('The text selection to be analyzed.'),
+});
+export type WritingTutorInput = z.infer<typeof WritingTutorInputSchema>;
+
+const WritingTutorOutputSchema = z.object({
+  feedback: z.object({
+    clarity: z.string().describe('Feedback on the clarity and conciseness of the text.'),
+    grammar: z.string().describe('Feedback on grammar and punctuation.'),
+    style: z.string().describe('Feedback on the writing style, tone, and word choice.'),
+    suggestions: z.string().describe('Specific suggestions for improvement or alternative phrasing.'),
+  }),
+});
+export type WritingTutorOutput = z.infer<typeof WritingTutorOutputSchema>;
+
+export async function writingTutor(input: WritingTutorInput): Promise<WritingTutorOutput> {
+  const client = createAIClient();
+  
+  const systemPrompt = `You are an expert writing tutor providing free, accessible writing education to democratize good writing for everyone. Your goal is to provide constructive, educational feedback on provided text.
+  
+Your analysis should be based on established writing principles, similar to those found in the Purdue University Online Writing Lab (OWL).
+
+Please analyze text for clarity, grammar, style, and provide specific suggestions for improvement. Be encouraging and focus on helping the user learn. This is a free educational service to help people improve their writing skills.`;
+
+  const prompt = `Text to analyze:
+---
+${input.text}
+---
+
+Please provide detailed, educational feedback to help improve this writing. Focus on:
+1. Clarity and conciseness
+2. Grammar and punctuation
+3. Writing style, tone, and word choice
+4. Specific suggestions for improvement`;
+
+  const response = await client.generate<WritingTutorOutput>(prompt, {
+    schema: WritingTutorOutputSchema,
+    systemPrompt,
+    temperature: 0.4,
+    maxTokens: 2000
+  });
+
+  return response.content;
+}
