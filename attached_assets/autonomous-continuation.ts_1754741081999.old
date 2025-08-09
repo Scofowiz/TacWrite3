@@ -1,0 +1,83 @@
+
+/**
+ * @fileOverview A flow for autonomously continuing writing from an ingested document to a specified word count.
+ *
+ * - autonomousContinuation - A function that handles the autonomous continuation process.
+ * - AutonomousContinuationInput - The input type for the autonomousContinuation function.
+ * - AutonomousContinuationOutput - The return type for the autonomousContinuation function.
+ */
+
+import { z } from 'zod';
+import { createAIClient } from '@/lib/ai-client';
+
+const AutonomousContinuationInputSchema = z.object({
+  documentContent: z
+    .string()
+    .describe('The content of the document to continue writing from.'),
+  targetWordCount: z
+    .number()
+    .describe('The target word count for the continued document.'),
+  direction: z
+    .string()
+    .optional()
+    .describe('Optional direction or instructions for the AI to follow.'),
+  genre: z
+    .string()
+    .optional()
+    .describe('The genre of the document (e.g., Fiction, Non-Fiction).'),
+  memory: z.string().optional().describe('A JSON string representing the knowledge graph of key story details, character notes, and world-building rules to remember.'),
+});
+export type AutonomousContinuationInput = z.infer<
+  typeof AutonomousContinuationInputSchema
+>;
+
+const AutonomousContinuationOutputSchema = z.object({
+  continuedContent: z
+    .string()
+    .describe('The autonomously continued content of the document.'),
+});
+export type AutonomousContinuationOutput = z.infer<
+  typeof AutonomousContinuationOutputSchema
+>;
+
+export async function autonomousContinuation(
+  input: AutonomousContinuationInput
+): Promise<AutonomousContinuationOutput> {
+  const client = createAIClient();
+  
+  const systemPrompt = `You are an AI writing assistant. Your task is to continue the following document until the target word count is reached. Ensure the continued content is coherent and consistent with the original document.
+
+Please provide only the new, continued text. Do not repeat the original document content.`;
+
+  let prompt = `Original Document:
+---
+${input.documentContent}
+---
+
+Target word count: ${input.targetWordCount}`;
+
+  if (input.genre) {
+    prompt += `\nGenre: ${input.genre}`;
+  }
+
+  if (input.direction) {
+    prompt += `\nInstructions: ${input.direction}`;
+  }
+
+  if (input.memory) {
+    prompt += `\n\nTo ensure consistency, you must adhere to the following key story details and rules from the knowledge graph:
+---
+${input.memory}
+---`;
+  }
+
+  const response = await client.generate(prompt, {
+    systemPrompt,
+    temperature: 0.8,
+    maxTokens: 4000
+  });
+
+  return {
+    continuedContent: response.content as string
+  };
+}

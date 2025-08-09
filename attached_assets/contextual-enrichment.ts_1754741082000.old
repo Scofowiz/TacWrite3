@@ -1,0 +1,46 @@
+
+/**
+ * @fileOverview This file defines a flow for contextual enrichment of text passages.
+ *
+ * - enrichContext - A function that enriches a given text passage with descriptive prose.
+ * - EnrichContextInput - The input type for the enrichContext function.
+ * - EnrichContextOutput - The return type for the enrichContext function.
+ */
+
+import { z } from 'zod';
+import { createAIClient } from '@/lib/ai-client';
+
+const EnrichContextInputSchema = z.object({
+  selectedText: z.string().describe('The text passage to be enriched.'),
+});
+export type EnrichContextInput = z.infer<typeof EnrichContextInputSchema>;
+
+const EnrichContextOutputSchema = z.object({
+  enrichedText: z.string().describe('The enriched text passage with added descriptive prose.'),
+});
+export type EnrichContextOutput = z.infer<typeof EnrichContextOutputSchema>;
+
+export async function enrichContext(input: EnrichContextInput): Promise<EnrichContextOutput> {
+  const client = createAIClient();
+  
+  const systemPrompt = `You are a creative writing assistant. Your task is to enrich the given text passage with descriptive prose to add depth and vibrancy.
+
+Focus on adding descriptive language, sensory details, and atmospheric elements to make the original passage more vivid and engaging. Maintain the original meaning and flow while enhancing it with rich, contextual details.`;
+
+  const prompt = `Text Passage to enrich:
+---
+${input.selectedText}
+---
+
+Please provide an enriched version of this text passage with added descriptive prose, sensory details, and vibrant imagery.`;
+
+  const response = await client.generate(prompt, {
+    systemPrompt,
+    temperature: 0.8,
+    maxTokens: 2000
+  });
+
+  return {
+    enrichedText: response.content as string
+  };
+}
