@@ -10,6 +10,71 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 
+// AI generation types
+const aiEnhanceSchema = z.object({
+  text: z.string(),
+  enhancementType: z.string(),
+  documentId: z.string().optional(),
+});
+
+const aiGenerateSchema = z.object({
+  prompt: z.string(),
+  genre: z.string().optional(),
+  memory: z.string().optional(),
+  contextualPrompt: z.string().optional(),
+});
+
+// Mock AI functions for demonstration
+async function mockEnhanceText(text: string, enhancementType: string): Promise<{
+  enhancedText: string;
+  qualityScore: string;
+  improvements: string[];
+}> {
+  // Simulate processing time
+  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+  
+  const improvements = [
+    "Enhanced descriptive language",
+    "Improved sentence flow",
+    "Strengthened character voice",
+    "Added emotional depth",
+    "Clarified meaning"
+  ];
+  
+  return {
+    enhancedText: `[Enhanced: ${enhancementType}] ${text} This text has been improved with richer vocabulary, better pacing, and more engaging prose that draws the reader deeper into the narrative.`,
+    qualityScore: (8.5 + Math.random() * 1.5).toFixed(1),
+    improvements: improvements.slice(0, 2 + Math.floor(Math.random() * 3))
+  };
+}
+
+async function mockGenerateText(prompt: string, options: any = {}): Promise<{
+  text: string;
+  qualityScore: string;
+}> {
+  // Simulate processing time
+  await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 2500));
+  
+  const responses = [
+    "The mist rolled across the ancient stones, carrying with it whispers of forgotten times. In the distance, a lone figure approached, their footsteps echoing against the silence that had settled over the ruins like a shroud.",
+    
+    "Sarah's fingers trembled as she opened the letter. The words on the page would change everything—she knew it even before her eyes traced the first line. Outside, rain began to fall, as if the sky itself mourned what was to come.",
+    
+    "The marketplace buzzed with activity, a symphony of voices haggling, laughing, and calling out their wares. Among the crowd, Marcus moved with purpose, his eyes scanning for the face he'd been told to find.",
+    
+    "At the edge of the world, where the sea met the sky in an endless embrace, stood the lighthouse. Its beam cut through the darkness like hope itself, guiding lost souls home to safety.",
+    
+    "The clock tower chimed midnight as Elena slipped through the shadows of the old quarter. Every step was calculated, every breath measured. Tonight, the revolution would begin."
+  ];
+  
+  const selectedResponse = responses[Math.floor(Math.random() * responses.length)];
+  
+  return {
+    text: selectedResponse,
+    qualityScore: (8.0 + Math.random() * 2.0).toFixed(1)
+  };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // Get current user (hardcoded for demo)
@@ -137,9 +202,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Simulate AI enhancement (replace with actual AI integration)
-      const enhancedText = `${text} [Enhanced with better clarity and flow]`;
-      const qualityScore = Math.random() * 3 + 7; // 7-10 range
+      // Use the enhanced AI system
+      const enhancementResult = await mockEnhanceText(text, enhancementType);
+      const qualityScore = parseFloat(enhancementResult.qualityScore);
 
       // Log AI interaction
       await storage.createAiInteraction({
@@ -147,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         documentId,
         agentType: "writing-assistant",
         inputText: text,
-        outputText: enhancedText,
+        outputText: enhancementResult.enhancedText,
         enhancementType,
         qualityScore: qualityScore.toString(),
         isPremiumFeature: false,
@@ -160,8 +225,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       res.json({
-        enhancedText,
+        enhancedText: enhancementResult.enhancedText,
         qualityScore,
+        improvements: enhancementResult.improvements,
         usageRemaining: user.maxUsage - (user.usageCount + 1),
       });
     } catch (error) {

@@ -52,18 +52,29 @@ Uses **Drizzle ORM** with PostgreSQL, featuring:
 The schema is designed for scalability with UUID primary keys and proper foreign key relationships.
 
 ### AI Agent System
-The application features a sophisticated multi-agent AI architecture:
-- **Agent Container System**: Provides fault tolerance, health monitoring, and lifecycle management
-- **Community Memory Pool**: Shared intelligence system for agent collaboration
-- **Agent Orchestrator**: Central coordination between legacy flows and enhanced agents
-- **Enhanced Agents**: Specialized AI agents for different writing tasks (autonomous continuation, tutoring, chapter ending, text enhancement)
+The application features a sophisticated multi-agent AI architecture with simplified, reliable text generation:
 
-Agent capabilities include:
-- Selection-aware text processing
-- Market trend integration via WFA agents
-- Multi-model orchestration for quality improvement
-- Contextual memory for consistent assistance
-- Premium feature gating and usage tracking
+**Core Architecture:**
+- **Agent Container System**: Provides fault tolerance, health monitoring, and lifecycle management
+- **Community Memory Pool**: Shared intelligence system for agent collaboration and learning
+- **Agent Orchestrator**: Central coordination managing 6 specialized agent types
+- **Simplified Text Generation**: Clean, dependency-free AI client system with mock and production modes
+
+**Agent Types:**
+- **Writing Assistant**: Basic text enhancement and improvement
+- **Autonomous Writer**: Premium content generation and auto-completion
+- **Contextual Enhancer**: Rich atmospheric and sensory detail addition
+- **WFA Agent**: Market trend integration and commercial appeal optimization
+- **Tutoring Agent**: Educational guidance with Purdue OWL integration
+- **Doctor Agent**: Issue diagnosis and targeted quality improvements
+
+**Key Features:**
+- Reinforcement learning through user feedback loops
+- Quality scoring and confidence metrics
+- Cross-agent memory sharing for collaborative intelligence
+- Premium feature gating with usage tracking
+- Health monitoring and automatic error recovery
+- Contextual pattern recognition for writing improvements
 
 ### Premium Feature System
 The application implements a freemium model with:
@@ -96,7 +107,17 @@ The application implements a freemium model with:
 - **Replit Integration**: Development environment optimization plugins
 
 ### AI and Machine Learning
-The application is architected to integrate with various AI services through a pluggable agent system, though specific AI providers are abstracted behind the agent interface.
+**Simplified AI Client System:**
+- **Development Mode**: Sophisticated mock AI client with realistic, contextual responses
+- **Production Mode**: Pluggable interface supporting various AI providers
+- **Text Generation**: Clean implementation without complex dependencies
+- **Agent Integration**: Seamless integration with multi-agent orchestration system
+
+**Learning Systems:**
+- **Community Memory**: Collaborative learning across agent interactions
+- **Quality Metrics**: Multi-dimensional scoring with user feedback integration
+- **Pattern Recognition**: Contextual writing improvement suggestions
+- **Reinforcement Learning**: Continuous improvement through usage analytics
 
 ### State Management and HTTP
 - **TanStack Query**: Server state management with caching and synchronization
