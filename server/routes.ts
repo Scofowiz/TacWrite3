@@ -480,6 +480,247 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Premium Writing Coach endpoint
+  app.post("/api/coach/session", async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername("demo_user");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check premium access
+      if (user.subscriptionTier !== "premium") {
+        return res.status(403).json({ 
+          message: "Premium writing coach requires a premium subscription.",
+          requiresUpgrade: true 
+        });
+      }
+
+      const { sessionType, recentWriting, specificQuestion } = req.body;
+
+      // Get user's analytics data
+      const interactions = await storage.getAiInteractionsByUser(user.id);
+      const recentInteractions = interactions.slice(-10);
+      const averageQuality = recentInteractions.length > 0 
+        ? recentInteractions.reduce((sum, i) => sum + parseFloat(i.qualityScore), 0) / recentInteractions.length
+        : 7.5;
+      
+      const wordsWritten = recentWriting ? recentWriting.length : 
+        recentInteractions.reduce((sum, i) => sum + i.inputText.length, 0);
+
+      // Mock coaching session response based on analytics
+      const coachingResponse = {
+        coachingType: sessionType || 'daily_checkin',
+        personalizedMessage: generateCoachingMessage(user, averageQuality, wordsWritten, sessionType),
+        styleInsights: generateStyleInsights(recentInteractions, averageQuality),
+        marketIntelligence: generateMarketInsights(sessionType),
+        actionableAdvice: generateActionableAdvice(averageQuality, wordsWritten),
+        encouragement: generateEncouragement(averageQuality, wordsWritten),
+        nextSessionFocus: determineNextFocus(sessionType, averageQuality),
+        confidence: 0.9,
+        analyticsUsed: {
+          totalInteractions: interactions.length,
+          averageQuality,
+          wordsAnalyzed: wordsWritten,
+          recentSessions: recentInteractions.length
+        }
+      };
+
+      // Log coaching session
+      await storage.createAiInteraction({
+        userId: user.id,
+        documentId: req.body.documentId || null,
+        agentType: "premium-coach",
+        inputText: specificQuestion || `${sessionType} coaching session`,
+        outputText: JSON.stringify(coachingResponse),
+        enhancementType: "coaching",
+        qualityScore: "9.5",
+        isPremiumFeature: true,
+        responseTime: Math.floor(Math.random() * 2000) + 1000,
+      });
+
+      res.json({
+        success: true,
+        coaching: coachingResponse,
+        sessionId: `coach-${Date.now()}`,
+        nextSessionRecommended: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to conduct coaching session" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Premium coaching helper functions
+function generateCoachingMessage(user: any, avgQuality: number, wordsWritten: number, sessionType: string): string {
+  const qualityLevel = avgQuality > 8 ? 'excellent' : avgQuality > 6 ? 'solid' : 'developing';
+  const wordLevel = wordsWritten > 2000 ? 'prolific' : wordsWritten > 1000 ? 'consistent' : 'steady';
+  
+  const greetings = [
+    "Well hello there, wordsmith! 📝",
+    "Look who's back for more literary wisdom! ✨",
+    "Ready to dive into your writing journey? 🚀",
+    "Time for some data-driven inspiration! 📊"
+  ];
+
+  const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+
+  switch (sessionType) {
+    case 'style_analysis':
+      return `${greeting}\n\nI've been analyzing your writing patterns, and I must say - your ${qualityLevel} work is really coming together! You've been ${wordLevel} in your output, which tells me you're finding your rhythm.\n\nYour writing style is developing its own personality. I'm seeing some distinctive patterns that make your voice uniquely yours. Let's dig into what makes your writing tick and how we can amplify those strengths!`;
+    
+    case 'market_insights':
+      return `${greeting}\n\nTime for some market intelligence! Based on your ${qualityLevel} writing quality and current trends, I've got some exciting insights about where your style fits in today's literary landscape.\n\nThe good news? Your authentic voice is exactly what readers are craving right now. Let's explore how to leverage current trends while staying true to your unique style.`;
+    
+    case 'growth_planning':
+      return `${greeting}\n\nLet's chart your course for literary greatness! With ${qualityLevel} quality scores and ${wordLevel} output, you're building solid foundations.\n\nEvery great writer has a roadmap - not just for stories, but for skill development. Today we're creating your personalized growth plan based on your analytics and market opportunities.`;
+    
+    default: // daily_checkin
+      return `${greeting}\n\nDaily check-in time! I've been watching your progress, and your ${qualityLevel} writing quality paired with ${wordLevel} output tells a story of genuine commitment.\n\nYou know what I love most about your recent work? You're not just writing - you're evolving. Each session shows growth, and that's the secret sauce every successful writer has.`;
+  }
+}
+
+function generateStyleInsights(interactions: any[], avgQuality: number): string[] {
+  const insights = [];
+  
+  if (interactions.length > 0) {
+    const agentUsage = interactions.reduce((acc, i) => {
+      acc[i.agentType] = (acc[i.agentType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const topAgent = Object.entries(agentUsage).sort(([,a], [,b]) => b - a)[0];
+    
+    if (topAgent) {
+      switch (topAgent[0]) {
+        case 'writing-assistant':
+          insights.push("You're a careful craftsperson - I love how you focus on polishing and refinement!");
+          break;
+        case 'contextual-enhancer':
+          insights.push("Your attention to atmospheric detail is impressive - you create vivid, immersive scenes!");
+          break;
+        case 'autonomous-writer':
+          insights.push("You're ambitious with content generation - that creative drive is your superpower!");
+          break;
+        default:
+          insights.push("You're exploring diverse techniques - that curiosity will serve you well!");
+      }
+    }
+  }
+  
+  if (avgQuality > 8) {
+    insights.push("Your quality consistency is outstanding - you've developed reliable instincts!");
+  } else if (avgQuality > 6) {
+    insights.push("Your quality is solid and improving - you're on an excellent trajectory!");
+  } else {
+    insights.push("Every writer starts somewhere - your willingness to practice is already setting you apart!");
+  }
+  
+  insights.push("Your unique voice is emerging with each piece you write - trust the process!");
+  
+  return insights;
+}
+
+function generateMarketInsights(sessionType?: string): string[] {
+  const trendInsights = [
+    "📈 Character-driven narratives are dominating - your focus on authentic voices is spot-on!",
+    "🔥 Readers are craving atmospheric, immersive fiction - perfect for your descriptive strengths!",
+    "⭐ Authentic storytelling beats formulaic writing every time - your genuine voice is your advantage!",
+    "💡 Cross-genre fusion is trending - don't be afraid to blend elements from different styles!",
+    "🎯 Micro-fiction and serialized content are gaining traction - consider experimenting with format!",
+  ];
+  
+  const marketAdvice = [
+    "The market rewards consistency over perfection - keep showing up!",
+    "Your authentic voice will find its audience - stay true to your style while being open to growth!",
+    "Current trends favor writers who can balance commercial appeal with literary quality!",
+  ];
+  
+  return [
+    trendInsights[Math.floor(Math.random() * trendInsights.length)],
+    marketAdvice[Math.floor(Math.random() * marketAdvice.length)]
+  ];
+}
+
+function generateActionableAdvice(avgQuality: number, wordsWritten: number): any[] {
+  const advice = [];
+  
+  // Daily practice advice
+  if (wordsWritten < 1000) {
+    advice.push({
+      category: "Daily Momentum",
+      suggestion: "Aim for 300 words daily - consistency beats marathon sessions every time!",
+      difficulty: "easy",
+      marketRelevance: 9
+    });
+  } else {
+    advice.push({
+      category: "Skill Expansion", 
+      suggestion: "Try writing in a different genre for 15 minutes - cross-training for writers!",
+      difficulty: "moderate",
+      marketRelevance: 8
+    });
+  }
+  
+  // Quality improvement advice
+  if (avgQuality < 7) {
+    advice.push({
+      category: "Fundamentals",
+      suggestion: "Focus on one aspect per session: dialogue, description, or pacing",
+      difficulty: "easy",
+      marketRelevance: 10
+    });
+  } else {
+    advice.push({
+      category: "Voice Development",
+      suggestion: "Experiment with different narrative perspectives to strengthen your unique voice",
+      difficulty: "moderate", 
+      marketRelevance: 9
+    });
+  }
+  
+  // Market-aligned advice
+  advice.push({
+    category: "Market Awareness",
+    suggestion: "Read one story in your target genre this week - analyze what hooks you as a reader",
+    difficulty: "easy",
+    marketRelevance: 10
+  });
+  
+  // Advanced technique
+  advice.push({
+    category: "Craft Mastery",
+    suggestion: "Practice 'show don't tell' by rewriting a descriptive paragraph using only action and dialogue",
+    difficulty: "challenging",
+    marketRelevance: 7
+  });
+  
+  return advice;
+}
+
+function generateEncouragement(avgQuality: number, wordsWritten: number): string {
+  const encouragements = [
+    "You're building something special - every word counts toward your unique voice! 🌟",
+    "I see real growth in your patterns - trust the process, you're exactly where you need to be! 💪",
+    "Your commitment to improvement is inspiring - that's the mindset of successful writers! ✨",
+    "Each session makes you stronger - you're not just writing, you're becoming a writer! 🚀",
+    "Your willingness to experiment and grow sets you apart - keep pushing those boundaries! 🎯"
+  ];
+  
+  return encouragements[Math.floor(Math.random() * encouragements.length)];
+}
+
+function determineNextFocus(sessionType?: string, avgQuality?: number): string {
+  if (sessionType === 'style_analysis') {
+    return "Voice refinement exercises and signature style development";
+  } else if (sessionType === 'market_insights') {
+    return "Authentic trend integration while maintaining your unique voice";
+  } else if (avgQuality && avgQuality < 7) {
+    return "Fundamental technique strengthening and consistent practice";
+  } else {
+    return "Advanced craft techniques and market-aware writing strategies";
+  }
 }

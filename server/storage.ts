@@ -69,9 +69,9 @@ export class MemStorage implements IStorage {
       username: "demo_user",
       email: "demo@tacwrite.com",
       password: "hashed_password",
-      subscriptionTier: "free",
+      subscriptionTier: "premium",
       usageCount: 3,
-      maxUsage: 5,
+      maxUsage: 100,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

@@ -16,6 +16,7 @@ export default function Navigation() {
   const getActiveTab = () => {
     if (location.includes("/tutoring")) return "tutoring";
     if (location.includes("/analytics")) return "analytics";
+    if (location.includes("/coach")) return "coach";
     return "editor";
   };
 
@@ -64,6 +65,17 @@ export default function Navigation() {
               >
                 <i className="fas fa-chart-line mr-2"></i>
                 Analytics
+              </Button>
+            </Link>
+            <Link href="/coach">
+              <Button
+                variant={getActiveTab() === "coach" ? "default" : "ghost"}
+                size="sm"
+                className="tab-button"
+              >
+                <i className="fas fa-user-graduate mr-2"></i>
+                Coach
+                {user?.subscriptionTier === "premium" && <Badge variant="secondary" className="ml-1 text-xs">Premium</Badge>}
               </Button>
             </Link>
           </div>
