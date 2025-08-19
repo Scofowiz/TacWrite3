@@ -7,7 +7,7 @@ import {
   insertLearningProgressSchema,
   insertAchievementSchema,
   insertWritingAnalyticsSchema
-} from "@shared/schema";
+} from "./schema";
 import { z } from "zod";
 
 // AI generation types
@@ -48,7 +48,7 @@ async function mockEnhanceText(text: string, enhancementType: string): Promise<{
   };
 }
 
-async function mockGenerateText(prompt: string, options: any = {}): Promise<{
+async function mockGenerateText(prompt: string, genre?: string): Promise<{
   text: string;
   qualityScore: string;
 }> {
@@ -56,15 +56,10 @@ async function mockGenerateText(prompt: string, options: any = {}): Promise<{
   await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 2500));
   
   const responses = [
-    "The mist rolled across the ancient stones, carrying with it whispers of forgotten times. In the distance, a lone figure approached, their footsteps echoing against the silence that had settled over the ruins like a shroud.",
-    
-    "Sarah's fingers trembled as she opened the letter. The words on the page would change everything—she knew it even before her eyes traced the first line. Outside, rain began to fall, as if the sky itself mourned what was to come.",
-    
-    "The marketplace buzzed with activity, a symphony of voices haggling, laughing, and calling out their wares. Among the crowd, Marcus moved with purpose, his eyes scanning for the face he'd been told to find.",
-    
-    "At the edge of the world, where the sea met the sky in an endless embrace, stood the lighthouse. Its beam cut through the darkness like hope itself, guiding lost souls home to safety.",
-    
-    "The clock tower chimed midnight as Elena slipped through the shadows of the old quarter. Every step was calculated, every breath measured. Tonight, the revolution would begin."
+    "The old lighthouse keeper had seen many storms, but none quite like this one. As the waves crashed against the rocky shore below, he noticed something unusual in the water—a glint of metal that shouldn't have been there.",
+    "Sarah's fingers trembled as she opened the letter. Twenty years she had waited for this moment, and now that it was here, she wasn't sure she was ready for the truth it would reveal.",
+    "The spaceship's warning lights flashed red as Captain Torres stared at the readings. According to the sensors, they were approaching a planet that wasn't supposed to exist.",
+    "In the quiet café on Fifth Street, Maya discovered that her grandmother's recipe book contained more than just cooking instructions—it held the key to a family secret spanning generations."
   ];
   
   const selectedResponse = responses[Math.floor(Math.random() * responses.length)];
@@ -80,7 +75,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get current user (hardcoded for demo)
   app.get("/api/user/current", async (req, res) => {
     try {
-      const users = await storage.getUserByUsername("demo_user");
+      const users = await storage.getUserByUsername("builder");
       if (!users) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -96,10 +91,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { subscriptionTier } = req.body;
       
-      const updatedUser = await storage.updateUser(id, { 
+      const updatedUser = await storage.updateUser(id, {
         subscriptionTier,
         maxUsage: subscriptionTier === "premium" ? 999999 : 5,
-        updatedAt: new Date()
       });
       
       if (!updatedUser) {
@@ -112,10 +106,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get documents for user
+  // Get user documents
   app.get("/api/documents", async (req, res) => {
     try {
-      const user = await storage.getUserByUsername("demo_user");
+      const user = await storage.getUserByUsername("builder");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -127,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get specific document
+  // Get single document
   app.get("/api/documents/:id", async (req, res) => {
     try {
       const { id } = req.params;
@@ -146,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new document
   app.post("/api/documents", async (req, res) => {
     try {
-      const user = await storage.getUserByUsername("demo_user");
+      const user = await storage.getUserByUsername("builder");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -187,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Enhancement endpoint - Enhanced with multiple agent types
   app.post("/api/ai/enhance", async (req, res) => {
     try {
-      const user = await storage.getUserByUsername("demo_user");
+      const user = await storage.getUserByUsername("builder");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -202,73 +196,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      let enhancementResult;
-      let responseAgentType = agentType;
-
-      // Route to different enhancement types based on agent
-      switch (agentType) {
-        case 'repetition-checker':
-          enhancementResult = {
-            enhancedText: `Repetition analysis for: "${text.substring(0, 100)}..." - Found 2-3 repetitive patterns that could be varied for better flow.`,
-            qualityScore: "8.5",
-            improvements: ["Identified repetitive patterns", "Provided variation suggestions", "Enhanced readability"]
-          };
-          responseAgentType = "doctor-agent";
-          break;
-          
-        case 'contextual-enhancer':
-          enhancementResult = await mockEnhanceText(text, "contextual enhancement");
-          responseAgentType = "contextual-enhancer";
-          break;
-          
-        case 'style-improver':
-          enhancementResult = await mockEnhanceText(text, "style improvement");
-          break;
-          
-        default:
-          enhancementResult = await mockEnhanceText(text, enhancementType);
-      }
-
-      const qualityScore = parseFloat(enhancementResult.qualityScore);
-
+      const validatedData = aiEnhanceSchema.parse({ text, enhancementType, documentId });
+      
+      // Real AI enhancement using Gemini
+      const apiKey = process.env.GEMINI_API_KEY;
+      const prompt = `Please enhance this text for ${validatedData.enhancementType}:\n\n${validatedData.text}`;
+      
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+        })
+      });
+      
+      const data = await response.json();
+      const enhancedText = data.candidates?.[0]?.content?.parts?.[0]?.text || validatedData.text;
+      
+      const enhancement = {
+        enhancedText,
+        qualityScore: "9.2",
+        improvements: ["Enhanced with AI", "Improved flow", "Better clarity"]
+      };
+      
       // Log AI interaction
       await storage.createAiInteraction({
         userId: user.id,
-        documentId,
-        agentType: responseAgentType,
-        inputText: text,
-        outputText: enhancementResult.enhancedText,
-        enhancementType,
-        qualityScore: qualityScore.toString(),
+        documentId: validatedData.documentId || null,
+        agentType,
+        inputText: validatedData.text,
+        outputText: enhancement.enhancedText,
+        enhancementType: validatedData.enhancementType,
+        qualityScore: enhancement.qualityScore,
         isPremiumFeature: false,
-        responseTime: Math.floor(Math.random() * 2000) + 500,
+        responseTime: Math.floor(Math.random() * 3000) + 1000,
       });
-
+      
       // Update user usage count
       await storage.updateUser(user.id, {
         usageCount: user.usageCount + 1,
       });
-
+      
       res.json({
-        enhancedText: enhancementResult.enhancedText,
-        qualityScore,
-        improvements: enhancementResult.improvements,
-        agentType: responseAgentType,
-        usageRemaining: user.maxUsage - (user.usageCount + 1),
+        enhancedText: enhancement.enhancedText,
+        originalText: validatedData.text,
+        enhancementType: validatedData.enhancementType,
+        improvements: enhancement.improvements,
+        qualityScore: enhancement.qualityScore,
+        agentType,
+        usageCount: user.usageCount + 1,
       });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
       res.status(500).json({ message: "Failed to enhance text" });
     }
   });
 
-  // Premium AI features (autonomous writer, WFA agent)
+  // Premium AI Features endpoints - Now with multiple specialized agents
   app.post("/api/ai/premium/:feature", async (req, res) => {
     try {
-      const user = await storage.getUserByUsername("demo_user");
+      const user = await storage.getUserByUsername("builder");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
+      const { feature } = req.params;
+      
+      // Check premium access
       if (user.subscriptionTier !== "premium") {
         return res.status(403).json({ 
           message: "Premium feature requires subscription upgrade.",
@@ -276,214 +273,141 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { feature } = req.params;
-      const { text, context, documentId } = req.body;
-
-      let agentType = "autonomous-writer";
-      let enhancedText = text;
-
+      const { text, context, agentType = "autonomous-writer" } = req.body;
+      
+      let result;
+      let responseAgent = agentType;
+      
       switch (feature) {
-        case "auto-complete":
-          agentType = "autonomous-writer";
-          const generationResult = await mockGenerateText(`Continue this text maintaining the same style and tone: ${text}`, { type: "continuation" });
-          enhancedText = `${text} ${generationResult.text}`;
+        case "autonomous-writer":
+          result = await mockGenerateText(text, context?.genre);
+          responseAgent = "autonomous-writer";
           break;
-        case "market-insights":
-          agentType = "wfa-agent";
-          enhancedText = `${text}\n\n[WFA Analysis: This content shows strong alignment with current market trends. The themes resonate with contemporary reader interests, particularly in the target demographic. Consider amplifying the emotional stakes and ensuring cultural relevance to maximize appeal.]`;
+          
+        case "contextual-enhancer":
+          result = await mockEnhanceText(text, "atmospheric");
+          responseAgent = "contextual-enhancer";
           break;
-        case "contextual-enhancement":
-          agentType = "contextual-enhancer";
-          const contextResult = await mockEnhanceText(text, "atmospheric enhancement");
-          enhancedText = contextResult.enhancedText;
+          
+        case "wfa-agent":
+          // WFA Market Insights Agent
+          result = {
+            text: `Based on current market trends, your ${context?.genre || 'literary'} piece shows strong potential. Market analysis suggests readers are gravitating toward authentic voices with emotional depth. Your work demonstrates ${Math.floor(Math.random() * 20) + 80}% alignment with trending themes. Consider emphasizing the character development aspects while maintaining your unique style.`,
+            qualityScore: (8.5 + Math.random() * 1.5).toFixed(1)
+          };
+          responseAgent = "wfa-agent";
           break;
-        case "tutoring-feedback":
-          agentType = "tutoring-agent";
-          enhancedText = `Educational Analysis:\n\nStrengths: Your writing shows ${text.length > 200 ? 'good development and detail' : 'clear expression'}.\n\nAreas for Growth: Consider ${text.includes('.') ? 'varying sentence structure' : 'adding more specific details'} to enhance engagement.\n\nNext Steps: Focus on developing your unique voice while maintaining clarity for your intended audience.`;
-          break;
+          
         default:
           return res.status(400).json({ message: "Unknown premium feature" });
       }
-
-      const qualityScore = Math.random() * 2 + 8; // 8-10 range for premium
-
+      
       // Log premium AI interaction
       await storage.createAiInteraction({
         userId: user.id,
-        documentId,
-        agentType,
+        documentId: req.body.documentId || null,
+        agentType: responseAgent,
         inputText: text,
-        outputText: enhancedText,
+        outputText: result.text,
         enhancementType: feature,
-        qualityScore: qualityScore.toString(),
+        qualityScore: result.qualityScore,
         isPremiumFeature: true,
-        responseTime: Math.floor(Math.random() * 3000) + 1000,
+        responseTime: Math.floor(Math.random() * 2000) + 1500,
       });
-
+      
       res.json({
-        enhancedText,
-        qualityScore,
-        agentType,
+        result: result.text,
+        originalText: text,
+        feature,
+        qualityScore: result.qualityScore,
+        agentType: responseAgent,
+        premium: true,
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to process premium feature" });
+      res.status(500).json({ message: `Failed to process ${req.params.feature}` });
     }
   });
 
-  // Get learning progress
-  app.get("/api/learning/progress", async (req, res) => {
-    try {
-      const user = await storage.getUserByUsername("demo_user");
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const progress = await storage.getLearningProgress(user.id);
-      res.json(progress);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get learning progress" });
-    }
-  });
-
-  // Update learning progress
-  app.patch("/api/learning/progress/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const updates = req.body;
-      
-      const updatedProgress = await storage.updateLearningProgress(id, updates);
-      
-      if (!updatedProgress) {
-        return res.status(404).json({ message: "Progress not found" });
-      }
-      
-      res.json(updatedProgress);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to update progress" });
-    }
-  });
-
-  // Get achievements
-  app.get("/api/achievements", async (req, res) => {
-    try {
-      const user = await storage.getUserByUsername("demo_user");
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const achievements = await storage.getAchievements(user.id);
-      res.json(achievements);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get achievements" });
-    }
-  });
-
-  // Get AI interactions for analytics
-  app.get("/api/analytics/interactions", async (req, res) => {
-    try {
-      const user = await storage.getUserByUsername("demo_user");
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const interactions = await storage.getAiInteractionsByUser(user.id);
-      res.json(interactions);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get analytics" });
-    }
-  });
-
-  // Get writing analytics
-  app.get("/api/analytics/writing", async (req, res) => {
-    try {
-      const user = await storage.getUserByUsername("demo_user");
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const analytics = await storage.getWritingAnalytics(user.id);
-      res.json(analytics);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to get writing analytics" });
-    }
-  });
-
-  // Enhanced Agent System Demo
+  // Enhanced Multi-Agent System - Community learning and agent orchestration
   app.post("/api/ai/enhanced-agents", async (req, res) => {
     try {
-      const user = await storage.getUserByUsername("demo_user");
+      const user = await storage.getUserByUsername("builder");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
 
-      const { text, agentType, action, documentId } = req.body;
-
-      let result;
-      switch (agentType) {
-        case 'repetition-checker':
-          result = {
-            analysis: `Repetition Analysis for "${text.substring(0, 50)}..."\n\nFound 3 patterns:\n• "very" appears 4 times - Consider using "extremely", "quite", or "remarkably"\n• "good" appears 3 times - Try "excellent", "impressive", or "effective"\n• "really" appears 2 times - Use "genuinely", "truly", or remove for stronger impact`,
-            agentType: 'doctor-agent',
-            confidence: 0.9
-          };
-          break;
-
-        case 'contextual-enhancer':
-          result = {
-            enhanced: `${text}\n\n[Enhanced Context]: The scene comes alive with rich atmospheric details - the soft whisper of wind through leaves, the way shadows dance across weathered stone, and the subtle tension that hangs in the air like morning mist. Each element adds depth to the narrative landscape.`,
-            agentType: 'contextual-enhancer',
-            confidence: 0.85
-          };
-          break;
-
-        case 'wfa-agent':
-          result = {
-            marketAnalysis: `WFA Market Intelligence Report:\n\n📈 Trend Alignment: Your content aligns with 3 major trends:\n• Cozy Fantasy (+89% popularity)\n• Character-driven narratives (+76% reader preference)\n• Atmospheric storytelling (+82% engagement)\n\n🎯 Optimization Suggestions:\n• Amplify emotional stakes for broader appeal\n• Consider adding contemporary themes for relevance\n• Perfect timing for seasonal content positioning`,
-            agentType: 'wfa-agent',
-            confidence: 0.95
-          };
-          break;
-
-        case 'tutoring-agent':
-          result = {
-            guidance: `Writing Tutorial Session: Narrative Structure\n\n📚 Learning Objective: Strengthen story foundation through effective structure\n\n✨ Strengths in Your Writing:\n• Clear voice and engaging tone\n• Good use of descriptive language\n\n🎯 Areas for Growth:\n• Vary sentence length for better rhythm\n• Add more concrete sensory details\n\n📝 Practice Exercise:\nRewrite the first paragraph focusing on one specific sense (sight, sound, or touch). This will deepen reader immersion.`,
-            agentType: 'tutoring-agent',
-            confidence: 0.92
-          };
-          break;
-
-        default:
-          return res.status(400).json({ message: "Unknown agent type" });
+      const { prompt, agents = ["writing-assistant", "contextual-enhancer"], memory, communityKnowledge } = req.body;
+      
+      // Check usage limits
+      if (user.subscriptionTier === "free" && user.usageCount >= user.maxUsage) {
+        return res.status(403).json({ 
+          message: "Usage limit reached. Upgrade to premium for unlimited access.",
+          requiresUpgrade: true 
+        });
       }
 
-      // Log the enhanced agent interaction
+      // Multi-agent response coordination
+      const agentResponses = await Promise.all(
+        agents.map(async (agent: string) => {
+          const enhancement = await mockEnhanceText(prompt, agent);
+          return {
+            agent,
+            response: enhancement.enhancedText,
+            confidence: parseFloat(enhancement.qualityScore) / 10,
+            reasoning: `Applied ${agent} methodology with focus on narrative enhancement`
+          };
+        })
+      );
+      
+      // Community memory integration
+      const memoryIntegration = memory ? 
+        `Building on previous sessions: ${memory.slice(0, 100)}...` : 
+        "Fresh perspective applied";
+      
+      // Synthesized response
+      const bestResponse = agentResponses.reduce((best, current) => 
+        current.confidence > best.confidence ? current : best
+      );
+      
+      // Log enhanced interaction
       await storage.createAiInteraction({
         userId: user.id,
-        documentId,
-        agentType: result.agentType,
-        inputText: text,
-        outputText: JSON.stringify(result),
-        enhancementType: action || 'analysis',
-        qualityScore: result.confidence.toString(),
-        isPremiumFeature: true,
-        responseTime: Math.floor(Math.random() * 1500) + 800,
+        documentId: req.body.documentId || null,
+        agentType: "multi-agent-system",
+        inputText: prompt,
+        outputText: bestResponse.response,
+        enhancementType: "collaborative-enhancement",
+        qualityScore: (bestResponse.confidence * 10).toFixed(1),
+        isPremiumFeature: user.subscriptionTier === "premium",
+        responseTime: Math.floor(Math.random() * 4000) + 2000,
       });
-
+      
+      // Update usage
+      if (user.subscriptionTier === "free") {
+        await storage.updateUser(user.id, {
+          usageCount: user.usageCount + 1,
+        });
+      }
+      
       res.json({
-        success: true,
-        result,
-        agentSystem: 'enhanced-multi-agent',
-        communityLearning: true
+        synthesizedResponse: bestResponse.response,
+        agentCollaboration: agentResponses,
+        memoryIntegration,
+        communityInsights: communityKnowledge ? 
+          "Incorporated community knowledge patterns" : 
+          "Individual session analysis",
+        qualityScore: (bestResponse.confidence * 10).toFixed(1),
+        usageCount: user.subscriptionTier === "free" ? user.usageCount + 1 : user.usageCount,
       });
     } catch (error) {
-      res.status(500).json({ message: "Failed to process enhanced agent request" });
+      res.status(500).json({ message: "Failed to process enhanced agents request" });
     }
   });
 
-  // Premium Writing Coach endpoint
-  app.post("/api/coach/session", async (req, res) => {
+  // Premium Writing Coach - Analytics-driven coaching sessions  
+  app.post("/api/ai/premium/coaching", async (req, res) => {
     try {
-      const user = await storage.getUserByUsername("demo_user");
+      const user = await storage.getUserByUsername("builder");
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -550,8 +474,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
+  // Gemini AI integration endpoint
+  app.post("/api/ai/gemini/generate", async (req, res) => {
+    try {
+      const { prompt, systemPrompt, temperature = 0.7, maxTokens = 2048, model = 'gemini-1.5-flash' } = req.body;
+      
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ message: "Gemini API key not configured" });
+      }
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: systemPrompt ? `${systemPrompt}\n\n${prompt}` : prompt
+            }]
+          }],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: maxTokens,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+      
+      res.json({
+        content,
+        usage: {
+          promptTokens: prompt.length / 4,
+          completionTokens: content.length / 4,
+          totalTokens: (prompt.length + content.length) / 4
+        }
+      });
+    } catch (error) {
+      console.error('Gemini API error:', error);
+      res.status(500).json({ message: "AI generation failed" });
+    }
+  });
+
+  // Cloudflare Workers AI integration endpoint
+  app.post("/api/ai/cloudflare/generate", async (req, res) => {
+    try {
+      const { prompt, systemPrompt, temperature = 0.7, maxTokens = 2048, model = '@cf/meta/llama-3.1-8b-instruct' } = req.body;
+      
+      const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+      const apiToken = process.env.CLOUDFLARE_API_TOKEN;
+      
+      if (!accountId || !apiToken) {
+        return res.status(500).json({ message: "Cloudflare AI credentials not configured" });
+      }
+
+      const messages = [];
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+      }
+      messages.push({ role: 'user', content: prompt });
+
+      const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Cloudflare AI error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data.result?.response || '';
+      
+      res.json({
+        content,
+        usage: {
+          promptTokens: prompt.length / 4,
+          completionTokens: content.length / 4,
+          totalTokens: (prompt.length + content.length) / 4
+        }
+      });
+    } catch (error) {
+      console.error('Cloudflare AI error:', error);
+      res.status(500).json({ message: "AI generation failed" });
+    }
+  });
+
+  // Create and return HTTP server
+  const server = createServer(app);
+  return server;
 }
 
 // Premium coaching helper functions
@@ -619,59 +645,45 @@ function generateStyleInsights(interactions: any[], avgQuality: number): string[
     insights.push("Every writer starts somewhere - your willingness to practice is already setting you apart!");
   }
   
-  insights.push("Your unique voice is emerging with each piece you write - trust the process!");
+  insights.push("Your unique voice is emerging - I can see patterns that are distinctly YOU!");
   
   return insights;
 }
 
 function generateMarketInsights(sessionType?: string): string[] {
-  const trendInsights = [
-    "📈 Character-driven narratives are dominating - your focus on authentic voices is spot-on!",
-    "🔥 Readers are craving atmospheric, immersive fiction - perfect for your descriptive strengths!",
-    "⭐ Authentic storytelling beats formulaic writing every time - your genuine voice is your advantage!",
-    "💡 Cross-genre fusion is trending - don't be afraid to blend elements from different styles!",
-    "🎯 Micro-fiction and serialized content are gaining traction - consider experimenting with format!",
-  ];
+  const insights = [];
   
-  const marketAdvice = [
-    "The market rewards consistency over perfection - keep showing up!",
-    "Your authentic voice will find its audience - stay true to your style while being open to growth!",
-    "Current trends favor writers who can balance commercial appeal with literary quality!",
-  ];
+  if (sessionType === 'market_insights') {
+    insights.push("Current trend: Authentic, character-driven narratives are dominating bestseller lists");
+    insights.push("Reader preference: Stories with emotional depth and relatable conflicts are highly sought after");
+    insights.push("Publishing insight: Unique voices with consistent quality attract agent attention");
+    insights.push("Platform opportunity: Short-form content is perfect for building an audience while working on longer pieces");
+  } else {
+    insights.push("Market tip: Your consistent practice is building the portfolio agents and publishers want to see");
+    insights.push("Industry note: Quality over quantity - your focus on improvement aligns with professional standards");
+  }
   
-  return [
-    trendInsights[Math.floor(Math.random() * trendInsights.length)],
-    marketAdvice[Math.floor(Math.random() * marketAdvice.length)]
-  ];
+  return insights;
 }
 
 function generateActionableAdvice(avgQuality: number, wordsWritten: number): any[] {
   const advice = [];
   
-  // Daily practice advice
-  if (wordsWritten < 1000) {
+  if (avgQuality < 7) {
     advice.push({
-      category: "Daily Momentum",
-      suggestion: "Aim for 300 words daily - consistency beats marathon sessions every time!",
-      difficulty: "easy",
-      marketRelevance: 9
-    });
-  } else {
-    advice.push({
-      category: "Skill Expansion", 
-      suggestion: "Try writing in a different genre for 15 minutes - cross-training for writers!",
+      category: "Craft Development",
+      suggestion: "Focus on one specific technique this week - try writing three short scenes using only dialogue",
       difficulty: "moderate",
       marketRelevance: 8
     });
   }
   
-  // Quality improvement advice
-  if (avgQuality < 7) {
+  if (wordsWritten < 1000) {
     advice.push({
-      category: "Fundamentals",
-      suggestion: "Focus on one aspect per session: dialogue, description, or pacing",
+      category: "Consistency Building", 
+      suggestion: "Set a small daily target - even 100 words daily creates momentum and builds the writing habit",
       difficulty: "easy",
-      marketRelevance: 10
+      marketRelevance: 9
     });
   } else {
     advice.push({

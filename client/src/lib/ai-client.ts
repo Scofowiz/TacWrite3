@@ -12,6 +12,8 @@ export interface AIClientConfig {
   model?: string;
 }
 
+export type AIProvider = 'mock' | 'gemini' | 'cloudflare' | 'production';
+
 export interface AIResponse {
   content: string;
   usage?: {
@@ -85,7 +87,89 @@ The journey ahead would not be easy, but it would be meaningful. And in a world 
 }
 
 /**
- * Production AI Client - would integrate with actual AI services
+ * Gemini AI Client - Google's Gemini API integration
+ */
+class GeminiAIClient implements AIClient {
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  async generate(prompt: string, config?: AIClientConfig): Promise<AIResponse> {
+    try {
+      const response = await fetch('/api/ai/gemini/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          systemPrompt: config?.systemPrompt,
+          temperature: config?.temperature || 0.7,
+          maxTokens: config?.maxTokens || 2048,
+          model: config?.model || 'gemini-1.5-flash'
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Gemini AI client error:', error);
+      const mockClient = new MockAIClient();
+      return mockClient.generate(prompt, config);
+    }
+  }
+}
+
+/**
+ * Cloudflare Workers AI Client
+ */
+class CloudflareAIClient implements AIClient {
+  private accountId: string;
+  private apiToken: string;
+
+  constructor(accountId: string, apiToken: string) {
+    this.accountId = accountId;
+    this.apiToken = apiToken;
+  }
+
+  async generate(prompt: string, config?: AIClientConfig): Promise<AIResponse> {
+    try {
+      const response = await fetch('/api/ai/cloudflare/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          systemPrompt: config?.systemPrompt,
+          temperature: config?.temperature || 0.7,
+          maxTokens: config?.maxTokens || 2048,
+          model: config?.model || '@cf/meta/llama-3.1-8b-instruct'
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Cloudflare AI error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Cloudflare AI client error:', error);
+      const mockClient = new MockAIClient();
+      return mockClient.generate(prompt, config);
+    }
+  }
+}
+
+/**
+ * Production AI Client - Legacy fallback
  */
 class ProductionAIClient implements AIClient {
   private apiKey?: string;
@@ -117,7 +201,6 @@ class ProductionAIClient implements AIClient {
       return await response.json();
     } catch (error) {
       console.error('Production AI client error:', error);
-      // Fallback to mock client for development
       const mockClient = new MockAIClient();
       return mockClient.generate(prompt, config);
     }
@@ -125,18 +208,44 @@ class ProductionAIClient implements AIClient {
 }
 
 /**
- * Factory function to create AI client based on environment
+ * Factory function to create AI client based on environment and provider selection
  */
-export function createAIClient(): AIClient {
-  // In development, use mock client
-  if (import.meta.env.DEV) {
-    return new MockAIClient();
-  }
+export function createAIClient(provider?: AIProvider): AIClient {
+  // Get provider from environment or parameter
+  const selectedProvider = provider || 
+    (import.meta.env.VITE_AI_PROVIDER as AIProvider) || 
+    (import.meta.env.DEV ? 'mock' : 'gemini');
   
-  // In production, use real AI client with API key from environment
-  const apiKey = import.meta.env.VITE_AI_API_KEY;
-  return new ProductionAIClient(apiKey);
+  switch (selectedProvider) {
+    case 'gemini': {
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn('Gemini API key not found, falling back to mock client');
+        return new MockAIClient();
+      }
+      return new GeminiAIClient(apiKey);
+    }
+    
+    case 'cloudflare': {
+      const accountId = import.meta.env.VITE_CLOUDFLARE_ACCOUNT_ID;
+      const apiToken = import.meta.env.VITE_CLOUDFLARE_API_TOKEN;
+      if (!accountId || !apiToken) {
+        console.warn('Cloudflare credentials not found, falling back to mock client');
+        return new MockAIClient();
+      }
+      return new CloudflareAIClient(accountId, apiToken);
+    }
+    
+    case 'production': {
+      const apiKey = import.meta.env.VITE_AI_API_KEY;
+      return new ProductionAIClient(apiKey);
+    }
+    
+    case 'mock':
+    default:
+      return new MockAIClient();
+  }
 }
 
 // Export for testing and advanced usage
-export { MockAIClient, ProductionAIClient };
+export { MockAIClient, GeminiAIClient, CloudflareAIClient, ProductionAIClient };

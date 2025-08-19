@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TACWrite - AI Writing Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Inter', 'sans-serif'],
+                        'serif': ['Georgia', 'serif'],
+                        'mono': ['Source Code Pro', 'monospace']
+                    },
+                    colors: {
+                        'primary': {
+                            50: '#eff6ff',
+                            500: '#2563eb',
+                            600: '#1d4ed8',
+                            700: '#1e40af'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo and Navigation -->
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-pen-nib text-white text-sm"></i>
+                        </div>
+                        <h1 class="text-xl font-bold text-gray-900">TACWrite</h1>
+                    </div>
+                    
+                    <!-- Tab Navigation -->
+                    <nav class="hidden md:flex space-x-1">
+                        <button class="tab-button active px-4 py-2 text-sm font-medium rounded-lg bg-primary-50 text-primary-700 border border-primary-200" data-tab="editor">
+                            <i class="fas fa-edit mr-2"></i>Editor
+                        </button>
+                        <button class="tab-button px-4 py-2 text-sm font-medium rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100" data-tab="tutoring">
+                            <i class="fas fa-graduation-cap mr-2"></i>Tutoring
+                        </button>
+                        <button class="tab-button px-4 py-2 text-sm font-medium rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100" data-tab="analytics">
+                            <i class="fas fa-chart-line mr-2"></i>Analytics
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- User Menu and Upgrade -->
+                <div class="flex items-center space-x-4">
+                    <!-- Usage Indicator -->
+                    <div class="hidden sm:flex items-center space-x-2 text-sm text-gray-600">
+                        <div class="w-20 bg-gray-200 rounded-full h-2">
+                            <div class="bg-green-500 h-2 rounded-full" style="width: 60%"></div>
+                        </div>
+                        <span>3/5 free uses</span>
+                    </div>
+                    
+                    <!-- Upgrade Button -->
+                    <button class="bg-gradient-to-r from-primary-500 to-primary-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:from-primary-600 hover:to-primary-700 transition-all">
+                        <i class="fas fa-crown mr-2"></i>Upgrade Pro
+                    </button>
+                    
+                    <!-- User Menu -->
+                    <div class="relative">
+                        <button class="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                            <i class="fas fa-user text-gray-600 text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        <!-- Editor Tab -->
+        <div id="editor-tab" class="tab-content">
+            <div class="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
+                
+                <!-- Instruction Panel -->
+                <div class="col-span-3 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                    <div class="p-4 border-b border-gray-200">
+                        <h3 class="font-semibold text-gray-900 flex items-center">
+                            <i class="fas fa-compass mr-2 text-primary-500"></i>
+                            Writing Assistant
+                        </h3>
+                        <p class="text-xs text-gray-600 mt-1">Real-time guidance and AI agents</p>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto">
+                        <!-- Agent Status -->
+                        <div class="p-4 border-b border-gray-100">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-sm font-medium text-gray-700">Active Agents</span>
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>
+                                    Online
+                                </span>
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between p-2 bg-primary-50 rounded-lg">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-robot text-primary-500 text-sm"></i>
+                                        <span class="text-sm font-medium text-gray-700">Tutor Agent</span>
+                                    </div>
+                                    <span class="text-xs text-primary-600">Active</span>
+                                </div>
+                                
+                                <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg opacity-60">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-brain text-gray-400 text-sm"></i>
+                                        <span class="text-sm font-medium text-gray-500">Autonomous Agent</span>
+                                    </div>
+                                    <i class="fas fa-lock text-gray-400 text-xs" title="Premium Feature"></i>
+                                </div>
+                                
+                                <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg opacity-60">
+                                    <div class="flex items-center space-x-2">
+                                        <i class="fas fa-chart-line text-gray-400 text-sm"></i>
+                                        <span class="text-sm font-medium text-gray-500">WFA Agent</span>
+                                    </div>
+                                    <i class="fas fa-lock text-gray-400 text-xs" title="Premium Feature"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Writing Direction -->
+                        <div class="p-4 border-b border-gray-100">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Writing Direction</label>
+                            <textarea 
+                                class="w-full h-20 p-3 border border-gray-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
+                                placeholder="Describe your writing goals, style preferences, or specific instructions for the AI agents..."
+                                data-mock="true">Continue the story with more character development and dialogue. Focus on building tension.</textarea>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="p-4 space-y-2">
+                            <h4 class="text-sm font-medium text-gray-700 mb-3">Quick Actions</h4>
+                            
+                            <button class="w-full flex items-center justify-between p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg text-sm transition-colors">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-magic text-green-600"></i>
+                                    <span class="font-medium text-green-700">Polish Text</span>
+                                </div>
+                                <span class="text-xs text-green-600 bg-green-200 px-2 py-1 rounded-full">Free</span>
+                            </button>
+                            
+                            <button class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm transition-colors opacity-60">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-rocket text-gray-400"></i>
+                                    <span class="font-medium text-gray-500">Continue Writing</span>
+                                </div>
+                                <i class="fas fa-lock text-gray-400"></i>
+                            </button>
+                            
+                            <button class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm transition-colors opacity-60">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-lightbulb text-gray-400"></i>
+                                    <span class="font-medium text-gray-500">Enhance Description</span>
+                                </div>
+                                <i class="fas fa-lock text-gray-400"></i>
+                            </button>
+                        </div>
+
+                        <!-- Premium Upgrade Prompt -->
+                        <div class="p-4">
+                            <div class="bg-gradient-to-r from-primary-500 to-purple-600 rounded-lg p-4 text-white">
+                                <div class="flex items-center space-x-2 mb-2">
+                                    <i class="fas fa-crown"></i>
+                                    <span class="font-semibold text-sm">Unlock Premium</span>
+                                </div>
+                                <p class="text-xs mb-3 opacity-90">Get unlimited AI assistance, autonomous writing, and advanced agents</p>
+                                <button class="w-full bg-white text-primary-600 py-2 px-3 rounded-md text-sm font-medium hover:bg-gray-50 transition-colors">
+                                    Upgrade Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Editor -->
+                <div class="col-span-9 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <h3 class="font-semibold text-gray-900">Document Editor</h3>
+                            <div class="flex items-center space-x-2 text-sm text-gray-600">
+                                <span data-bind="document.wordCount">1,247 words</span>
+                                <span>•</span>
+                                <span data-bind="document.lastSaved">Saved 2 minutes ago</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-2">
+                            <!-- Real-time Feedback Indicator -->
+                            <div class="flex items-center space-x-2 bg-green-50 px-3 py-1 rounded-full">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                <span class="text-xs text-green-700 font-medium">AI Active</span>
+                            </div>
+                            
+                            <button class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                                <i class="fas fa-cog"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Writing Area -->
+                    <div class="flex-1 relative overflow-hidden">
+                        <div class="h-full p-6 overflow-y-auto">
+                            <!-- Document Title -->
+                            <input 
+                                type="text" 
+                                class="w-full text-2xl font-bold text-gray-900 border-none outline-none mb-6 font-serif placeholder-gray-400" 
+                                placeholder="Enter your document title..."
+                                data-mock="true"
+                                value="Chapter 12: The Discovery">
+
+                            <!-- Content Editor -->
+                            <div class="prose prose-lg max-w-none font-serif">
+                                <div class="min-h-[500px] outline-none" contenteditable="true" data-mock="true">
+                                    <p>The ancient library stretched before them like a cathedral of knowledge, its towering shelves disappearing into shadows above. Dust motes danced in the pale shafts of light that filtered through the high windows, creating an almost ethereal atmosphere that made Sarah's breath catch in her throat.</p>
+                                    
+                                    <p>"This is it," whispered Marcus, his voice barely audible in the vast silence. <span class="bg-yellow-100 border-l-4 border-yellow-400 pl-2 relative cursor-pointer" title="AI Suggestion: Consider adding more sensory details here">His fingers traced the worn spine of a leather-bound tome</span>, feeling the weight of centuries beneath his touch.</p>
+                                    
+                                    <p>Sarah moved closer to the central reading table, where an open manuscript lay beneath a pool of golden lamplight. The pages were covered in intricate symbols and diagrams that seemed to shift and writhe in the flickering illumination. As she leaned forward to examine them more closely, <span class="bg-blue-100 border-l-4 border-blue-400 pl-2 relative cursor-pointer" title="Grammar suggestion: Consider revising for clarity">a strange tingling sensation began to spread through her fingertips</span>.</p>
+                                    
+                                    <p class="relative">
+                                        <span class="bg-green-100 border-l-4 border-green-400 pl-2">The text appeared to be written in multiple languages, some of which she recognized from her studies in ancient linguistics.</span>
+                                        <button class="absolute -right-8 top-0 w-6 h-6 bg-green-500 text-white rounded-full text-xs hover:bg-green-600 transition-colors">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cursor-Aware Suggestions -->
+                        <div class="absolute bottom-4 right-4 bg-white border border-gray-200 rounded-lg shadow-lg p-3 max-w-xs" style="display: none;" id="cursor-suggestion">
+                            <div class="flex items-start space-x-2">
+                                <div class="w-6 h-6 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <i class="fas fa-lightbulb text-primary-600 text-xs"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">AI Suggestion</p>
+                                    <p class="text-xs text-gray-600 mt-1">Add more sensory details to enhance the atmosphere of this scene.</p>
+                                    <div class="flex space-x-2 mt-2">
+                                        <button class="text-xs bg-primary-500 text-white px-2 py-1 rounded hover:bg-primary-600">Apply</button>
+                                        <button class="text-xs text-gray-500 px-2 py-1 rounded hover:text-gray-700">Dismiss</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tutoring Tab -->
+        <div id="tutoring-tab" class="tab-content hidden">
+            <div class="grid grid-cols-12 gap-6 h-[calc(100vh-140px)]">
+                
+                <!-- Course Navigation -->
+                <div class="col-span-3 bg-white rounded-xl shadow-sm border border-gray-200">
+                    <div class="p-4 border-b border-gray-200">
+                        <h3 class="font-semibold text-gray-900 flex items-center">
+                            <i class="fas fa-graduation-cap mr-2 text-primary-500"></i>
+                            Writing Courses
+                        </h3>
+                        <p class="text-xs text-gray-600 mt-1">Powered by Purdue OWL</p>
+                    </div>
+                    
+                    <div class="p-4 space-y-3">
+                        <!-- Course Modules -->
+                        <div class="space-y-2">
+                            <button class="w-full text-left p-3 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="font-medium text-primary-700 text-sm">Grammar Fundamentals</h4>
+                                        <p class="text-xs text-primary-600 mt-1">8 lessons • 45 min</p>
+                                    </div>
+                                    <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                                        <span class="text-xs font-bold text-primary-600">1</span>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button class="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="font-medium text-gray-700 text-sm">Essay Structure</h4>
+                                        <p class="text-xs text-gray-600 mt-1">6 lessons • 30 min</p>
+                                    </div>
+                                    <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                        <span class="text-xs font-bold text-gray-600">2</span>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button class="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="font-medium text-gray-700 text-sm">Citation Styles</h4>
+                                        <p class="text-xs text-gray-600 mt-1">5 lessons • 25 min</p>
+                                    </div>
+                                    <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                        <span class="text-xs font-bold text-gray-600">3</span>
+                                    </div>
+                                </div>
+                            </button>
+                            
+                            <button class="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors opacity-60">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="font-medium text-gray-500 text-sm">Advanced Rhetoric</h4>
+                                        <p class="text-xs text-gray-500 mt-1">12 lessons • 60 min</p>
+                                    </div>
+                                    <div class="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-lock text-gray-400 text-xs"></i>
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+
+                        <!-- Progress Overview -->
+                        <div class="mt-6 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <h4 class="font-medium text-green-800 text-sm mb-2">Your Progress</h4>
+                            <div class="space-y-2">
+                                <div class="flex items-center justify-between text-xs">
+                                    <span class="text-green-700">Lessons Completed</span>
+                                    <span class="font-bold text-green-800">12/30</span>
+                                </div>
+                                <div class="w-full bg-green-100 rounded-full h-2">
+                                    <div class="bg-green-500 h-2 rounded-full" style="width: 40%"></div>
+                                </div>
+                                <p class="text-xs text-green-600 mt-1">40% Complete</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Course Content -->
+                <div class="col-span-9 bg-white rounded-xl shadow-sm border border-gray-200">
+                    <div class="p-4 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="font-semibold text-gray-900">Grammar Fundamentals</h3>
+                                <p class="text-sm text-gray-600">Lesson 3: Subject-Verb Agreement</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xs text-gray-500">3 of 8</span>
+                                <div class="w-20 bg-gray-200 rounded-full h-2">
+                                    <div class="bg-primary-500 h-2 rounded-full" style="width: 37.5%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6 overflow-y-auto h-full">
+                        <!-- Lesson Content -->
+                        <div class="max-w-4xl">
+                            <!-- Purdue OWL Integration -->
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                <div class="flex items-center space-x-2 mb-2">
+                                    <!-- Purdue OWL logo placeholder -->
+                                    <div class="w-6 h-6 bg-blue-600 rounded flex items-center justify-center">
+                                        <span class="text-white text-xs font-bold">P</span>
+                                    </div>
+                                    <span class="font-semibold text-blue-800 text-sm">Purdue OWL Resource</span>
+                                </div>
+                                <p class="text-sm text-blue-700">This lesson is based on official Purdue OWL writing guidelines and best practices.</p>
+                            </div>
+
+                            <h2 class="text-xl font-bold text-gray-900 mb-4">Understanding Subject-Verb Agreement</h2>
+                            
+                            <div class="prose prose-gray max-w-none">
+                                <p>Subject-verb agreement is a fundamental rule in English grammar. The subject and verb in a sentence must agree in number (singular or plural).</p>
+                                
+                                <h3 class="text-lg font-semibold text-gray-800 mt-6 mb-3">Basic Rules</h3>
+                                
+                                <div class="bg-gray-50 border-l-4 border-primary-500 p-4 mb-4">
+                                    <h4 class="font-medium text-gray-900 mb-2">Rule 1: Singular subjects take singular verbs</h4>
+                                    <p class="text-sm text-gray-700 mb-2">Example: <em>The cat runs</em> (not "run")</p>
+                                    <p class="text-sm text-gray-700">Example: <em>She writes</em> (not "write")</p>
+                                </div>
+                                
+                                <div class="bg-gray-50 border-l-4 border-primary-500 p-4 mb-6">
+                                    <h4 class="font-medium text-gray-900 mb-2">Rule 2: Plural subjects take plural verbs</h4>
+                                    <p class="text-sm text-gray-700 mb-2">Example: <em>The cats run</em> (not "runs")</p>
+                                    <p class="text-sm text-gray-700">Example: <em>They write</em> (not "writes")</p>
+                                </div>
+
+                                <!-- Interactive Exercise -->
+                                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                                    <h4 class="font-semibold text-yellow-800 mb-3">
+                                        <i class="fas fa-pencil-alt mr-2"></i>
+                                        Practice Exercise
+                                    </h4>
+                                    <p class="text-sm text-yellow-700 mb-4">Choose the correct verb form for each sentence:</p>
+                                    
+                                    <div class="space-y-3">
+                                        <div class="bg-white p-3 rounded border">
+                                            <p class="text-sm text-gray-800 mb-2">1. The dogs in the park _____ loudly every morning.</p>
+                                            <div class="flex space-x-2">
+                                                <button class="px-3 py-1 bg-gray-100 hover:bg-primary-100 border border-gray-300 rounded text-sm transition-colors">bark</button>
+                                                <button class="px-3 py-1 bg-gray-100 hover:bg-primary-100 border border-gray-300 rounded text-sm transition-colors">barks</button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="bg-white p-3 rounded border">
+                                            <p class="text-sm text-gray-800 mb-2">2. Each of the students _____ their own notebook.</p>
+                                            <div class="flex space-x-2">
+                                                <button class="px-3 py-1 bg-gray-100 hover:bg-primary-100 border border-gray-300 rounded text-sm transition-colors">have</button>
+                                                <button class="px-3 py-1 bg-gray-100 hover:bg-primary-100 border border-gray-300 rounded text-sm transition-colors">has</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <button class="mt-4 bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-yellow-700 transition-colors">
+                                        Check Answers
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Lesson Navigation -->
+                    <div class="p-4 border-t border-gray-200 flex items-center justify-between">
+                        <button class="flex items-center space-x-2 text-primary-600 hover:text-primary-700 font-medium">
+                            <i class="fas fa-chevron-left"></i>
+                            <span>Previous Lesson</span>
+                        </button>
+                        
+                        <button class="bg-primary-500 text-white px-6 py-2 rounded-lg font-medium hover:bg-primary-600 transition-colors">
+                            Complete Lesson
+                        </button>
+                        
+                        <button class="flex items-center space-x-2 text-primary-600 hover:text-primary-700 font-medium">
+                            <span>Next Lesson</span>
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div id="analytics-tab" class="tab-content hidden">
+            <div class="space-y-6">
+                <!-- Analytics Header -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <h2 class="text-xl font-bold text-gray-900 mb-2">Writing Analytics</h2>
+                    <p class="text-gray-600">Track your writing progress and agent performance</p>
+                </div>
+                
+                <!-- Analytics Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <!-- Words Written -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Words Written</p>
+                                <p class="text-2xl font-bold text-gray-900" data-bind="analytics.wordsWritten">12,847</p>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-pen text-blue-600"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-sm text-green-600 font-medium">+23% this week</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Sessions -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Writing Sessions</p>
+                                <p class="text-2xl font-bold text-gray-900" data-bind="analytics.sessions">47</p>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-clock text-green-600"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-sm text-green-600 font-medium">+12% this week</span>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Assists -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">AI Assists</p>
+                                <p class="text-2xl font-bold text-gray-900" data-bind="analytics.aiAssists">89</p>
+                            </div>
+                            <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-robot text-purple-600"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-sm text-red-600 font-medium">2 remaining (free)</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Quality Score -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Avg Quality</p>
+                                <p class="text-2xl font-bold text-gray-900" data-bind="analytics.qualityScore">8.2/10</p>
+                            </div>
+                            <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                <i class="fas fa-star text-yellow-600"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <span class="text-sm text-green-600 font-medium">+0.3 this week</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Writing Progress Chart -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Writing Progress</h3>
+                        <div class="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+                            <p class="text-gray-500">Chart placeholder - Words written over time</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Agent Performance -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Agent Performance</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Tutor Agent</span>
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-20 bg-gray-200 rounded-full h-2">
+                                        <div class="bg-green-500 h-2 rounded-full" style="width: 85%"></div>
+                                    </div>
+                                    <span class="text-sm font-medium text-gray-900">8.5/10</span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between opacity-60">
+                                <span class="text-sm text-gray-500">Autonomous Agent</span>
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-lock text-gray-400 text-xs"></i>
+                                    <span class="text-sm text-gray-500">Premium</span>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between opacity-60">
+                                <span class="text-sm text-gray-500">WFA Agent</span>
+                                <div class="flex items-center space-x-2">
+                                    <i class="fas fa-lock text-gray-400 text-xs"></i>
+                                    <span class="text-sm text-gray-500">Premium</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript for Tab Functionality -->
+    <script>
+        (function() {
+            // Tab switching functionality
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const targetTab = button.dataset.tab;
+                    
+                    // Update button states
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('active', 'bg-primary-50', 'text-primary-700', 'border-primary-200');
+                        btn.classList.add('text-gray-600', 'hover:text-gray-900', 'hover:bg-gray-100');
+                    });
+                    
+                    button.classList.remove('text-gray-600', 'hover:text-gray-900', 'hover:bg-gray-100');
+                    button.classList.add('active', 'bg-primary-50', 'text-primary-700', 'border-primary-200');
+                    
+                    // Update content visibility
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    
+                    document.getElementById(targetTab + '-tab').classList.remove('hidden');
+                });
+            });
+
+            // Cursor suggestion simulation
+            const editor = document.querySelector('[contenteditable]');
+            const suggestion = document.getElementById('cursor-suggestion');
+            
+            if (editor && suggestion) {
+                let suggestionTimeout;
+                
+                editor.addEventListener('click', (e) => {
+                    clearTimeout(suggestionTimeout);
+                    suggestion.style.display = 'none';
+                    
+                    suggestionTimeout = setTimeout(() => {
+                        suggestion.style.display = 'block';
+                    }, 2000);
+                });
+                
+                // Hide suggestion when clicking elsewhere
+                document.addEventListener('click', (e) => {
+                    if (!suggestion.contains(e.target) && e.target !== editor) {
+                        suggestion.style.display = 'none';
+                    }
+                });
+            }
+
+            // Premium feature click handlers
+            const premiumButtons = document.querySelectorAll('button:has(.fa-lock)');
+            premiumButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    alert('This feature requires TACWrite Pro. Upgrade to unlock advanced AI agents and unlimited usage.');
+                });
+            });
+
+            // Exercise interaction simulation
+            const exerciseButtons = document.querySelectorAll('.bg-gray-100.hover\\:bg-primary-100');
+            exerciseButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remove selection from siblings
+                    button.parentElement.querySelectorAll('button').forEach(btn => {
+                        btn.classList.remove('bg-primary-500', 'text-white');
+                        btn.classList.add('bg-gray-100');
+                    });
+                    
+                    // Select clicked button
+                    button.classList.remove('bg-gray-100');
+                    button.classList.add('bg-primary-500', 'text-white');
+                });
+            });
+        })();
+    </script>
+</body>
+</html>

@@ -11,7 +11,7 @@ import {
   type InsertAchievement,
   type WritingAnalytics,
   type InsertWritingAnalytics
-} from "@shared/schema";
+} from "./schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -66,12 +66,12 @@ export class MemStorage implements IStorage {
     const userId = randomUUID();
     const sampleUser: User = {
       id: userId,
-      username: "demo_user",
-      email: "demo@tacwrite.com",
+      username: "builder",
+      email: "builder@thoughtstream.com",
       password: "hashed_password",
       subscriptionTier: "premium",
-      usageCount: 3,
-      maxUsage: 100,
+      usageCount: 0,
+      maxUsage: 999999,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

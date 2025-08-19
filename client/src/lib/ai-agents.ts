@@ -413,3 +413,46 @@ export class AgentOrchestrator {
 
 // Export singleton instance
 export const agentOrchestrator = new AgentOrchestrator();
+
+// Legacy exports for backward compatibility
+export const aiAgentsClient = agentOrchestrator;
+
+// Type exports for UI components
+export interface AiAssistantSuggestion {
+  content: string;
+  type: string;
+  confidence: number;
+}
+
+export interface EnhancementRequest {
+  text: string;
+  enhancementType: string;
+  documentId?: string;
+}
+
+export interface EnhancementResult {
+  enhancedText: string;
+  qualityScore: string;
+  improvements: string[];
+}
+
+export interface CharacterProfileRequest {
+  text: string;
+  context?: Record<string, any>;
+}
+
+export interface CharacterProfile {
+  name: string;
+  traits: string[];
+  background: string;
+  motivations: string[];
+}
+
+// Utility functions
+export function isPremiumRequired(agentType: AgentType): boolean {
+  return ['wfa-agent', 'doctor-agent'].includes(agentType);
+}
+
+export function formatEnhancementSummary(result: AgentResponse): string {
+  return `Quality: ${result.qualityScore.toFixed(1)}/10 • ${result.improvements?.join(', ') || 'Enhanced'}`;
+}
