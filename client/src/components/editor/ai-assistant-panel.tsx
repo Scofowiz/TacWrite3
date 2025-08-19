@@ -88,7 +88,7 @@ export default function AiAssistantPanel({
       let isFromCursor = data.enhancementType === 'continue' || data.enhancementType === 'auto-complete';
       
       // Find the textarea element to get accurate cursor position
-      const textarea = document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
+      const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
       if (textarea && isFromCursor) {
         cursorPosition = textarea.selectionStart;
       }
@@ -159,7 +159,7 @@ export default function AiAssistantPanel({
       // Check if this was a cursor-aware continuation
       if (lastEnhancementData.isFromCursor && lastEnhancementData.cursorPosition !== undefined) {
         // Get the current document content and cursor position
-        const textarea = document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
+        const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
         const currentContent = document?.content || '';
         
         // Use the stored cursor position from when the enhancement was requested
