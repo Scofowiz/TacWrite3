@@ -10,8 +10,16 @@ import {
   type Achievement,
   type InsertAchievement,
   type WritingAnalytics,
-  type InsertWritingAnalytics
-} from "./schema";
+  type InsertWritingAnalytics,
+  users,
+  documents,
+  aiInteractions,
+  learningProgress,
+  achievements,
+  writingAnalytics
+} from "../shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -343,4 +351,210 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user || undefined;
+  }
+
+  // Document operations
+  async getDocument(id: string): Promise<Document | undefined> {
+    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    return document || undefined;
+  }
+
+  async getDocumentsByUser(userId: string): Promise<Document[]> {
+    return await db
+      .select()
+      .from(documents)
+      .where(eq(documents.userId, userId))
+      .orderBy(desc(documents.lastModified));
+  }
+
+  async createDocument(insertDocument: InsertDocument): Promise<Document> {
+    const [document] = await db
+      .insert(documents)
+      .values(insertDocument)
+      .returning();
+    return document;
+  }
+
+  async updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined> {
+    const [document] = await db
+      .update(documents)
+      .set({ ...updates, lastModified: new Date() })
+      .where(eq(documents.id, id))
+      .returning();
+    return document || undefined;
+  }
+
+  async deleteDocument(id: string): Promise<boolean> {
+    const result = await db.delete(documents).where(eq(documents.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // AI Interaction operations
+  async createAiInteraction(insertInteraction: InsertAiInteraction): Promise<AiInteraction> {
+    const [interaction] = await db
+      .insert(aiInteractions)
+      .values(insertInteraction)
+      .returning();
+    return interaction;
+  }
+
+  async getAiInteractionsByUser(userId: string): Promise<AiInteraction[]> {
+    return await db
+      .select()
+      .from(aiInteractions)
+      .where(eq(aiInteractions.userId, userId))
+      .orderBy(desc(aiInteractions.createdAt));
+  }
+
+  async getAiInteractionsByDocument(documentId: string): Promise<AiInteraction[]> {
+    return await db
+      .select()
+      .from(aiInteractions)
+      .where(eq(aiInteractions.documentId, documentId))
+      .orderBy(desc(aiInteractions.createdAt));
+  }
+
+  // Learning Progress operations
+  async getLearningProgress(userId: string): Promise<LearningProgress[]> {
+    return await db
+      .select()
+      .from(learningProgress)
+      .where(eq(learningProgress.userId, userId));
+  }
+
+  async createLearningProgress(insertProgress: InsertLearningProgress): Promise<LearningProgress> {
+    const [progress] = await db
+      .insert(learningProgress)
+      .values(insertProgress)
+      .returning();
+    return progress;
+  }
+
+  async updateLearningProgress(id: string, updates: Partial<LearningProgress>): Promise<LearningProgress | undefined> {
+    const [progress] = await db
+      .update(learningProgress)
+      .set({ ...updates, lastAccessed: new Date() })
+      .where(eq(learningProgress.id, id))
+      .returning();
+    return progress || undefined;
+  }
+
+  // Achievement operations
+  async getAchievements(userId: string): Promise<Achievement[]> {
+    return await db
+      .select()
+      .from(achievements)
+      .where(eq(achievements.userId, userId))
+      .orderBy(desc(achievements.unlockedAt));
+  }
+
+  async createAchievement(insertAchievement: InsertAchievement): Promise<Achievement> {
+    const [achievement] = await db
+      .insert(achievements)
+      .values(insertAchievement)
+      .returning();
+    return achievement;
+  }
+
+  // Analytics operations
+  async getWritingAnalytics(userId: string): Promise<WritingAnalytics[]> {
+    return await db
+      .select()
+      .from(writingAnalytics)
+      .where(eq(writingAnalytics.userId, userId))
+      .orderBy(desc(writingAnalytics.date));
+  }
+
+  async createWritingAnalytics(insertAnalytics: InsertWritingAnalytics): Promise<WritingAnalytics> {
+    const [analytics] = await db
+      .insert(writingAnalytics)
+      .values(insertAnalytics)
+      .returning();
+    return analytics;
+  }
+
+  async updateWritingAnalytics(userId: string, date: Date, updates: Partial<WritingAnalytics>): Promise<WritingAnalytics | undefined> {
+    const [analytics] = await db
+      .update(writingAnalytics)
+      .set(updates)
+      .where(eq(writingAnalytics.userId, userId))
+      .returning();
+    return analytics || undefined;
+  }
+
+  // Initialize with sample data if database is empty
+  async initializeIfEmpty(): Promise<void> {
+    const existingUsers = await db.select().from(users).limit(1);
+    if (existingUsers.length === 0) {
+      // Create sample user with sample documents
+      const [user] = await db
+        .insert(users)
+        .values({
+          username: "builder",
+          email: "builder@thoughtstream.com",
+          password: "hashed_password",
+          subscriptionTier: "premium",
+          usageCount: 0,
+          maxUsage: 999999,
+        })
+        .returning();
+
+      // Create sample documents
+      await db.insert(documents).values([
+        {
+          userId: user.id,
+          title: "Research Paper Draft",
+          content: "Climate change represents one of the most pressing challenges of our time...",
+          wordCount: 2341,
+          aiAssistantActive: true,
+          context: { genre: "academic", audience: "undergraduate" },
+          genre: "research paper",
+          targetAudience: "academic",
+        },
+        {
+          userId: user.id,
+          title: "Essay: Climate Change",
+          content: "The effects of climate change are becoming increasingly visible...",
+          wordCount: 1892,
+          aiAssistantActive: false,
+          genre: "essay",
+          targetAudience: "general",
+        },
+      ]);
+    }
+  }
+}
+
+export const storage = new DatabaseStorage();

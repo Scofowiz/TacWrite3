@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +18,55 @@ export default function AiAssistantPanel({
   onPremiumFeature
 }: AiAssistantPanelProps) {
   const [selectedText, setSelectedText] = useState("");
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const panelRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Initialize position on mount
+  useEffect(() => {
+    if (panelRef.current) {
+      const rect = panelRef.current.getBoundingClientRect();
+      setPosition({ 
+        x: window.innerWidth - rect.width - 24, 
+        y: 24 
+      });
+    }
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return; // Don't drag when clicking buttons
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragStart]);
 
   const { data: user } = useQuery<User>({
     queryKey: ["/api/user/current"],
@@ -62,8 +109,18 @@ export default function AiAssistantPanel({
   const usagePercentage = user ? (user.usageCount / user.maxUsage) * 100 : 0;
 
   return (
-    <div className="absolute right-6 top-6 w-80 bg-white rounded-lg shadow-lg border border-neutral-200 z-20">
-      <div className="p-4 border-b border-neutral-200">
+    <div 
+      ref={panelRef}
+      className="fixed w-80 bg-white rounded-lg shadow-lg border border-neutral-200 z-20 cursor-move"
+      style={{ 
+        left: position.x, 
+        top: position.y,
+        transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+        transition: isDragging ? 'none' : 'transform 0.2s ease',
+      }}
+      onMouseDown={handleMouseDown}
+    >
+      <div className="p-4 border-b border-neutral-200 select-none">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-6 h-6 bg-accent rounded flex items-center justify-center">
@@ -156,30 +213,18 @@ export default function AiAssistantPanel({
           </div>
         </div>
 
-        {/* Usage Tracking */}
-        {user && user.subscriptionTier === "free" && (
-          <div className="bg-neutral-50 rounded-lg p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-neutral-600">Free Assists Used</span>
-              <span className="text-xs text-neutral-600">{user.usageCount}/{user.maxUsage}</span>
+        {/* Feature Status - All Premium Features Unlocked */}
+        <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+          <div className="flex items-center space-x-2 mb-2">
+            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+              <i className="fas fa-check text-white text-xs"></i>
             </div>
-            <div className="w-full bg-neutral-200 rounded-full h-2">
-              <div 
-                className="bg-primary h-2 rounded-full transition-all" 
-                style={{ width: `${usagePercentage}%` }}
-              ></div>
-            </div>
-            <p className="text-xs text-neutral-500 mt-2">
-              {user.maxUsage - user.usageCount} assists remaining.{" "}
-              <button
-                onClick={onPremiumFeature}
-                className="text-secondary hover:underline"
-              >
-                Upgrade for unlimited access
-              </button>
-            </p>
+            <span className="text-sm font-medium text-green-800">All Features Unlocked</span>
           </div>
-        )}
+          <p className="text-xs text-green-700">
+            Premium AI features are now available for unlimited use. Try Auto-Complete, Market Insights, and Coach features!
+          </p>
+        </div>
       </div>
     </div>
   );

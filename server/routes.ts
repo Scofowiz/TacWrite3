@@ -71,6 +71,12 @@ async function mockGenerateText(prompt: string, genre?: string): Promise<{
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize database with sample data if empty
+  if ('initializeIfEmpty' in storage) {
+    await (storage as any).initializeIfEmpty();
+  }
+
+  const server = createServer(app);
   
   // Get current user (hardcoded for demo)
   app.get("/api/user/current", async (req, res) => {
@@ -227,11 +233,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         responseTime: Math.floor(Math.random() * 3000) + 1000,
       });
       
-      // Update user usage count
-      await storage.updateUser(user.id, {
-        usageCount: user.usageCount + 1,
-      });
-      
       res.json({
         enhancedText: enhancement.enhancedText,
         originalText: validatedData.text,
@@ -239,7 +240,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         improvements: enhancement.improvements,
         qualityScore: enhancement.qualityScore,
         agentType,
-        usageCount: user.usageCount + 1,
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -551,8 +551,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create and return HTTP server
-  const server = createServer(app);
   return server;
 }
 
