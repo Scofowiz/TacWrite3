@@ -15,6 +15,9 @@ export default function EditorView() {
   const [aiAssistantVisible, setAiAssistantVisible] = useState(true);
   const [documentContent, setDocumentContent] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
+  const [undoHistory, setUndoHistory] = useState<string[]>([]);
+  const [redoHistory, setRedoHistory] = useState<string[]>([]);
+  const [lastSavedContent, setLastSavedContent] = useState("");
   const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
@@ -95,7 +98,13 @@ export default function EditorView() {
     });
   };
 
-  const handleContentChange = (content: string) => {
+  const handleContentChange = (content: string, skipHistory = false) => {
+    // Add to undo history if this is a user action (not undo/redo)
+    if (!skipHistory && documentContent !== content && documentContent.length > 0) {
+      setUndoHistory(prev => [...prev.slice(-49), documentContent]); // Keep last 50 states
+      setRedoHistory([]); // Clear redo history on new change
+    }
+    
     setDocumentContent(content);
     const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
     
@@ -110,6 +119,34 @@ export default function EditorView() {
     }, 2000);
   };
 
+  const handleUndo = () => {
+    if (undoHistory.length === 0) return;
+    
+    const previousState = undoHistory[undoHistory.length - 1];
+    setRedoHistory(prev => [documentContent, ...prev.slice(0, 49)]);
+    setUndoHistory(prev => prev.slice(0, -1));
+    handleContentChange(previousState, true);
+    
+    toast({
+      title: "Undone",
+      description: "Last change has been undone",
+    });
+  };
+
+  const handleRedo = () => {
+    if (redoHistory.length === 0) return;
+    
+    const nextState = redoHistory[0];
+    setUndoHistory(prev => [...prev.slice(-49), documentContent]);
+    setRedoHistory(prev => prev.slice(1));
+    handleContentChange(nextState, true);
+    
+    toast({
+      title: "Redone",
+      description: "Change has been restored",
+    });
+  };
+
   const handleTitleChange = (title: string) => {
     setDocumentTitle(title);
     updateDocumentMutation.mutate({ title });
@@ -120,8 +157,29 @@ export default function EditorView() {
     if (selectedDocument) {
       setDocumentTitle(selectedDocument.title);
       setDocumentContent(selectedDocument.content);
+      // Reset undo/redo history when switching documents
+      setUndoHistory([]);
+      setRedoHistory([]);
     }
   }, [selectedDocument]);
+
+  // Add keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          handleUndo();
+        } else if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [undoHistory, redoHistory, documentContent]);
 
   // Select first document by default
   if (documents && documents.length > 0 && !selectedDocumentId) {
@@ -146,6 +204,10 @@ export default function EditorView() {
           document={selectedDocument}
           onAiAssistantToggle={() => setAiAssistantVisible(!aiAssistantVisible)}
           aiAssistantVisible={aiAssistantVisible}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={undoHistory.length > 0}
+          canRedo={redoHistory.length > 0}
         />
 
         <div className="flex-1 flex">

@@ -6,12 +6,20 @@ interface DocumentEditorProps {
   document?: Document;
   onAiAssistantToggle: () => void;
   aiAssistantVisible: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export default function DocumentEditor({
   document,
   onAiAssistantToggle,
-  aiAssistantVisible
+  aiAssistantVisible,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false
 }: DocumentEditorProps) {
   
   if (!document) {
@@ -43,6 +51,28 @@ export default function DocumentEditor({
           </div>
         </div>
         <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1 border-r border-neutral-200 pr-3">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onUndo}
+              disabled={!canUndo}
+              data-testid="button-undo"
+            >
+              <i className="fas fa-undo mr-1"></i>
+              Undo
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={onRedo}
+              disabled={!canRedo}
+              data-testid="button-redo"
+            >
+              <i className="fas fa-redo mr-1"></i>
+              Redo
+            </Button>
+          </div>
           <Button variant="ghost" size="sm">
             <i className="fas fa-share-alt mr-2"></i>
             Share
