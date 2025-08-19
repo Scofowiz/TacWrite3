@@ -58,12 +58,13 @@ export default function AiAssistantPanel({
   };
 
   useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+    if (isDragging && typeof window !== 'undefined') {
+      const doc = window.document;
+      doc.addEventListener('mousemove', handleMouseMove);
+      doc.addEventListener('mouseup', handleMouseUp);
       return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
+        doc.removeEventListener('mousemove', handleMouseMove);
+        doc.removeEventListener('mouseup', handleMouseUp);
       };
     }
   }, [isDragging, dragStart]);
@@ -111,12 +112,13 @@ export default function AiAssistantPanel({
   return (
     <div 
       ref={panelRef}
-      className="fixed w-80 bg-white rounded-lg shadow-lg border border-neutral-200 z-20 cursor-move"
+      className="fixed w-80 bg-white rounded-lg shadow-lg border border-neutral-200 z-20 cursor-move overflow-hidden"
       style={{ 
         left: position.x, 
         top: position.y,
         transform: isDragging ? 'scale(1.02)' : 'scale(1)',
         transition: isDragging ? 'none' : 'transform 0.2s ease',
+        maxHeight: '80vh',
       }}
       onMouseDown={handleMouseDown}
     >
@@ -134,7 +136,7 @@ export default function AiAssistantPanel({
         </div>
       </div>
       
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 overflow-y-auto max-h-96">
         {/* Current Suggestion */}
         <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
           <div className="flex items-start space-x-2">
@@ -143,7 +145,7 @@ export default function AiAssistantPanel({
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium text-neutral-800 mb-1">Enhancement Suggestion</p>
-              <p className="text-sm text-neutral-600">
+              <p className="text-sm text-neutral-600 break-words">
                 The highlighted paragraph could benefit from more specific data and examples to support the claims.
               </p>
               <div className="flex items-center space-x-2 mt-2">
@@ -221,7 +223,7 @@ export default function AiAssistantPanel({
             </div>
             <span className="text-sm font-medium text-green-800">All Features Unlocked</span>
           </div>
-          <p className="text-xs text-green-700">
+          <p className="text-xs text-green-700 break-words">
             Premium AI features are now available for unlimited use. Try Auto-Complete, Market Insights, and Coach features!
           </p>
         </div>

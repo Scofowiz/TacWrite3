@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import DocumentSidebar from "@/components/editor/document-sidebar";
 import DocumentEditor from "@/components/editor/document-editor";
@@ -15,6 +15,7 @@ export default function EditorView() {
   const [aiAssistantVisible, setAiAssistantVisible] = useState(true);
   const [documentContent, setDocumentContent] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
+  const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const { data: user } = useQuery<User>({
@@ -98,12 +99,15 @@ export default function EditorView() {
     setDocumentContent(content);
     const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
     
+    // Clear previous timeout
+    if (autoSaveTimeout.current) {
+      clearTimeout(autoSaveTimeout.current);
+    }
+    
     // Auto-save after 2 seconds of no typing
-    const timeoutId = setTimeout(() => {
+    autoSaveTimeout.current = setTimeout(() => {
       updateDocumentMutation.mutate({ content, wordCount });
     }, 2000);
-    
-    return () => clearTimeout(timeoutId);
   };
 
   const handleTitleChange = (title: string) => {
