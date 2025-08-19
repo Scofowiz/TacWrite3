@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Document, User } from "@shared/schema";
+import { useCommunityMemory } from "@/hooks/use-ai-assistant";
 
 interface AiAssistantPanelProps {
   document: Document;
@@ -24,10 +25,13 @@ export default function AiAssistantPanel({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [lastEnhancement, setLastEnhancement] = useState<string | null>(null);
+  const [lastEnhancementData, setLastEnhancementData] = useState<any>(null);
   const [currentSuggestion, setCurrentSuggestion] = useState("The highlighted paragraph could benefit from more specific data and examples to support the claims.");
+  const [showFeedback, setShowFeedback] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { recordInteraction } = useCommunityMemory();
 
   // Initialize position on mount
   useEffect(() => {
@@ -88,6 +92,8 @@ export default function AiAssistantPanel({
     },
     onSuccess: (data) => {
       setLastEnhancement(data.enhancedText);
+      setLastEnhancementData(data);
+      setShowFeedback(true);
       toast({
         title: "Text Enhanced",
         description: `Quality score: ${data.qualityScore}/10`,
@@ -110,6 +116,24 @@ export default function AiAssistantPanel({
   const handleEnhancement = (type: string) => {
     const text = selectedText || document.content || "Sample text for enhancement";
     enhanceTextMutation.mutate({ text, enhancementType: type });
+  };
+
+  const handleFeedback = async (rating: 'good' | 'ok' | 'poor' | 'decline') => {
+    if (lastEnhancementData) {
+      await recordInteraction(
+        lastEnhancementData.agentType || 'writing-assistant',
+        'text-enhancement',
+        { text: selectedText || document.content, enhancementType: lastEnhancementData.enhancementType },
+        { enhancedText: lastEnhancementData.enhancedText, qualityScore: lastEnhancementData.qualityScore },
+        rating
+      );
+      
+      setShowFeedback(false);
+      toast({
+        title: "Feedback Recorded",
+        description: "Thank you! This helps improve our AI agents.",
+      });
+    }
   };
 
   const applyEnhancement = () => {
@@ -175,13 +199,47 @@ export default function AiAssistantPanel({
               </p>
               <div className="flex items-center space-x-2 mt-2">
                 {lastEnhancement ? (
-                  <Button
-                    size="sm"
-                    onClick={applyEnhancement}
-                    className="text-xs"
-                  >
-                    Apply Enhancement
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      onClick={applyEnhancement}
+                      className="text-xs"
+                    >
+                      Apply Enhancement
+                    </Button>
+                    {showFeedback && (
+                      <div className="flex items-center space-x-1 ml-2">
+                        <span className="text-xs text-neutral-500">Rate:</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFeedback('good')}
+                          className="text-xs px-1 py-0 h-6 text-green-600 hover:text-green-700"
+                          title="Good response"
+                        >
+                          <i className="fas fa-thumbs-up"></i>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFeedback('ok')}
+                          className="text-xs px-1 py-0 h-6 text-yellow-600 hover:text-yellow-700"
+                          title="Okay response"
+                        >
+                          <i className="fas fa-meh"></i>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFeedback('poor')}
+                          className="text-xs px-1 py-0 h-6 text-red-600 hover:text-red-700"
+                          title="Poor response"
+                        >
+                          <i className="fas fa-thumbs-down"></i>
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <Button
                     size="sm"

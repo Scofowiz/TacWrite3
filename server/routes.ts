@@ -201,25 +201,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Real AI enhancement using Gemini
       const apiKey = process.env.GEMINI_API_KEY;
       
+      // Get document context for better instruction following
+      let documentContext = "";
+      if (validatedData.documentId) {
+        const doc = await storage.getDocument(validatedData.documentId);
+        if (doc && doc.context) {
+          const context = typeof doc.context === 'string' ? doc.context : JSON.stringify(doc.context);
+          documentContext = `\n\nDocument Context: ${context}\nGenre: ${doc.genre || 'general'}\nTarget Audience: ${doc.targetAudience || 'general'}`;
+        }
+      }
+
+      // Get community memory insights for this agent type
+      const recentInteractions = await storage.getAiInteractionsByUser(user.id);
+      const goodPatterns = recentInteractions
+        .filter(i => i.agentType === agentType && i.userRating && i.userRating >= 4)
+        .slice(-3)
+        .map(i => `Previous good approach: ${i.enhancementType}`)
+        .join('\n');
+      
+      const memoryGuidance = goodPatterns ? `\n\nLearning from positive feedback: ${goodPatterns}` : '';
+
       let prompt = "";
       switch (validatedData.enhancementType) {
         case "clarity":
-          prompt = `Please rewrite this text to improve clarity and readability, making it easier to understand while preserving the original meaning:\n\n"${validatedData.text}"`;
+          prompt = `Please rewrite this text to improve clarity and readability, making it easier to understand while preserving the original meaning.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
           break;
         case "polish":
-          prompt = `Please polish and refine this text, improving its flow, grammar, and overall quality while maintaining the author's voice:\n\n"${validatedData.text}"`;
+          prompt = `Please polish and refine this text, improving its flow, grammar, and overall quality while maintaining the author's voice.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
           break;
         case "auto-complete":
-          prompt = `Please continue writing this text naturally, adding 2-3 more sentences that flow well with the existing content:\n\n"${validatedData.text}"`;
+          prompt = `Please continue writing this text naturally, adding 2-3 more sentences that flow well with the existing content and match the established tone.${documentContext}${memoryGuidance}\n\nText to continue: "${validatedData.text}"`;
           break;
         case "market-insights":
-          prompt = `Please enhance this text to make it more engaging and commercially appealing for readers, while keeping the core message intact:\n\n"${validatedData.text}"`;
+          prompt = `Please enhance this text to make it more engaging and commercially appealing for readers, while keeping the core message intact and following market best practices.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
           break;
         case "continue":
-          prompt = `Please continue this story or text naturally, adding meaningful content that builds on what's already written:\n\n"${validatedData.text}"`;
+          prompt = `Please continue this story or text naturally, adding meaningful content that builds on what's already written and maintains narrative consistency.${documentContext}${memoryGuidance}\n\nText to continue: "${validatedData.text}"`;
           break;
         default:
-          prompt = `Please improve and enhance this text, making it more engaging and better written:\n\n"${validatedData.text}"`;
+          prompt = `Please improve and enhance this text, making it more engaging and better written while following the provided context and instructions.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
       }
       
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -245,7 +265,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         improvements: ["Enhanced with Gemini AI", "Improved readability", "Better engagement"]
       };
       
-      // Log AI interaction
+      // Log AI interaction with user rating initialization
       await storage.createAiInteraction({
         userId: user.id,
         documentId: validatedData.documentId || null,
@@ -254,6 +274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         outputText: enhancement.enhancedText,
         enhancementType: validatedData.enhancementType,
         qualityScore: enhancement.qualityScore,
+        userRating: null, // Will be updated when user provides feedback
         isPremiumFeature: false,
         responseTime: Math.floor(Math.random() * 3000) + 1000,
       });
@@ -573,6 +594,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Cloudflare AI error:', error);
       res.status(500).json({ message: "AI generation failed" });
+    }
+  });
+
+  // Community Memory API endpoints for RL learning
+  app.post("/api/ai/community/interaction", async (req, res) => {
+    try {
+      const { agentType, action, input, output, userFeedback, timestamp } = req.body;
+      const user = await storage.getUserByUsername("builder");
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Log the interaction with user feedback
+      await storage.createAiInteraction({
+        userId: user.id,
+        documentId: null,
+        agentType,
+        inputText: JSON.stringify(input),
+        outputText: JSON.stringify(output),
+        enhancementType: action,
+        qualityScore: userFeedback === 'good' ? '9.0' : userFeedback === 'ok' ? '7.0' : userFeedback === 'poor' ? '4.0' : '5.0',
+        userRating: userFeedback === 'good' ? 5 : userFeedback === 'ok' ? 4 : userFeedback === 'poor' ? 2 : 1,
+        isPremiumFeature: false,
+        responseTime: 1000,
+      });
+
+      res.json({ success: true, message: "Interaction logged to community memory" });
+    } catch (error) {
+      console.error('Community memory logging error:', error);
+      res.status(500).json({ message: "Failed to log interaction" });
+    }
+  });
+
+  app.get("/api/ai/community/insights", async (req, res) => {
+    try {
+      const { category } = req.query;
+      const user = await storage.getUserByUsername("builder");
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Get recent AI interactions to generate insights
+      const interactions = await storage.getAiInteractionsByUser(user.id);
+      
+      const insights = [];
+      
+      if (interactions.length > 0) {
+        const goodResponses = interactions.filter(i => i.userRating && i.userRating >= 4);
+        const poorResponses = interactions.filter(i => i.userRating && i.userRating <= 2);
+        
+        if (goodResponses.length > poorResponses.length) {
+          insights.push("Your recent AI interactions show positive feedback patterns - agents are learning your preferences");
+        }
+        
+        const agentPerformance = interactions.reduce((acc, i) => {
+          if (!acc[i.agentType]) acc[i.agentType] = { total: 0, good: 0 };
+          acc[i.agentType].total++;
+          if (i.userRating && i.userRating >= 4) acc[i.agentType].good++;
+          return acc;
+        }, {} as Record<string, {total: number, good: number}>);
+        
+        Object.entries(agentPerformance).forEach(([agentType, stats]) => {
+          const successRate = stats.good / stats.total;
+          if (successRate > 0.8) {
+            insights.push(`${agentType} agent performing excellently (${Math.round(successRate * 100)}% positive feedback)`);
+          } else if (successRate < 0.5) {
+            insights.push(`${agentType} agent needs improvement (${Math.round(successRate * 100)}% positive feedback)`);
+          }
+        });
+      }
+
+      res.json({ insights, category });
+    } catch (error) {
+      console.error('Community insights error:', error);
+      res.status(500).json({ message: "Failed to get insights" });
     }
   });
 

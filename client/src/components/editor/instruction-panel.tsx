@@ -11,10 +11,18 @@ interface InstructionPanelProps {
 }
 
 export default function InstructionPanel({ document }: InstructionPanelProps) {
-  const [context, setContext] = useState(
-    document?.context?.description || 
-    "Academic research paper for environmental science course. Target audience: undergraduate students and professors. Formal tone with clear evidence-based arguments."
-  );
+  const [context, setContext] = useState(() => {
+    if (!document) return "Academic research paper for environmental science course. Target audience: undergraduate students and professors. Formal tone with clear evidence-based arguments.";
+    
+    if (document.context) {
+      if (typeof document.context === 'string') return document.context;
+      if (typeof document.context === 'object' && 'description' in document.context) {
+        return (document.context as any).description;
+      }
+    }
+    
+    return "Academic research paper for environmental science course. Target audience: undergraduate students and professors. Formal tone with clear evidence-based arguments.";
+  });
   const [currentGoal, setCurrentGoal] = useState("improve-clarity");
 
   if (!document) {
