@@ -10,17 +10,21 @@ interface AiAssistantPanelProps {
   document: Document;
   onClose: () => void;
   onPremiumFeature: () => void;
+  onTextUpdate?: (text: string) => void;
 }
 
 export default function AiAssistantPanel({
   document,
   onClose,
-  onPremiumFeature
+  onPremiumFeature,
+  onTextUpdate
 }: AiAssistantPanelProps) {
   const [selectedText, setSelectedText] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [lastEnhancement, setLastEnhancement] = useState<string | null>(null);
+  const [currentSuggestion, setCurrentSuggestion] = useState("The highlighted paragraph could benefit from more specific data and examples to support the claims.");
   const panelRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -83,6 +87,7 @@ export default function AiAssistantPanel({
       return response.json();
     },
     onSuccess: (data) => {
+      setLastEnhancement(data.enhancedText);
       toast({
         title: "Text Enhanced",
         description: `Quality score: ${data.qualityScore}/10`,
@@ -105,6 +110,26 @@ export default function AiAssistantPanel({
   const handleEnhancement = (type: string) => {
     const text = selectedText || document.content || "Sample text for enhancement";
     enhanceTextMutation.mutate({ text, enhancementType: type });
+  };
+
+  const applyEnhancement = () => {
+    if (lastEnhancement && onTextUpdate) {
+      onTextUpdate(lastEnhancement);
+      setLastEnhancement(null);
+      toast({
+        title: "Enhancement Applied",
+        description: "The enhanced text has been applied to your document.",
+      });
+    }
+  };
+
+  const dismissSuggestion = () => {
+    setCurrentSuggestion("Looking for ways to improve your text...");
+    setLastEnhancement(null);
+    toast({
+      title: "Suggestion Dismissed",
+      description: "The suggestion has been dismissed.",
+    });
   };
 
   const usagePercentage = user ? (user.usageCount / user.maxUsage) * 100 : 0;
@@ -146,18 +171,28 @@ export default function AiAssistantPanel({
             <div className="flex-1">
               <p className="text-sm font-medium text-neutral-800 mb-1">Enhancement Suggestion</p>
               <p className="text-sm text-neutral-600 break-words">
-                The highlighted paragraph could benefit from more specific data and examples to support the claims.
+                {lastEnhancement ? `Enhanced: ${lastEnhancement.substring(0, 100)}${lastEnhancement.length > 100 ? '...' : ''}` : currentSuggestion}
               </p>
               <div className="flex items-center space-x-2 mt-2">
-                <Button
-                  size="sm"
-                  onClick={() => handleEnhancement("clarity")}
-                  disabled={enhanceTextMutation.isPending}
-                  className="text-xs"
-                >
-                  {enhanceTextMutation.isPending ? "Enhancing..." : "Apply Enhancement"}
-                </Button>
-                <Button variant="ghost" size="sm" className="text-xs">
+                {lastEnhancement ? (
+                  <Button
+                    size="sm"
+                    onClick={applyEnhancement}
+                    className="text-xs"
+                  >
+                    Apply Enhancement
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => handleEnhancement("clarity")}
+                    disabled={enhanceTextMutation.isPending}
+                    className="text-xs"
+                  >
+                    {enhanceTextMutation.isPending ? "Enhancing..." : "Enhance Text"}
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" className="text-xs" onClick={dismissSuggestion}>
                   Dismiss
                 </Button>
               </div>

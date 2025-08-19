@@ -197,6 +197,7 @@ export default function EditorView() {
                 document={selectedDocument}
                 onClose={() => setAiAssistantVisible(false)}
                 onPremiumFeature={handlePremiumFeature}
+                onTextUpdate={handleContentChange}
               />
             )}
           </div>
