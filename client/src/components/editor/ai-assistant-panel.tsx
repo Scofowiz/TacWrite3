@@ -26,7 +26,7 @@ export default function AiAssistantPanel({
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [lastEnhancement, setLastEnhancement] = useState<string | null>(null);
   const [lastEnhancementData, setLastEnhancementData] = useState<any>(null);
-  const [currentSuggestion, setCurrentSuggestion] = useState("The highlighted paragraph could benefit from more specific data and examples to support the claims.");
+  const [currentSuggestion, setCurrentSuggestion] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -82,11 +82,24 @@ export default function AiAssistantPanel({
   });
 
   const enhanceTextMutation = useMutation({
-    mutationFn: async (data: { text: string; enhancementType: string }) => {
+    mutationFn: async (data: { text: string; enhancementType: string; documentId: string }) => {
+      // Get current cursor position
+      const selection = window.getSelection();
+      let cursorPosition = 0;
+      let isFromCursor = false;
+      
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        cursorPosition = range.startOffset;
+        isFromCursor = data.enhancementType === 'continue' || data.enhancementType === 'auto-complete';
+      }
+
       const response = await apiRequest("POST", "/api/ai/enhance", {
         text: data.text,
         enhancementType: data.enhancementType,
-        documentId: document.id,
+        documentId: data.documentId,
+        cursorPosition,
+        isFromCursor
       });
       return response.json();
     },
@@ -114,8 +127,14 @@ export default function AiAssistantPanel({
   });
 
   const handleEnhancement = (type: string) => {
-    const text = selectedText || document.content || "Sample text for enhancement";
-    enhanceTextMutation.mutate({ text, enhancementType: type });
+    // Use selected text or document content
+    const contextText = selectedText || document.content || "";
+    
+    enhanceTextMutation.mutate({ 
+      text: contextText, 
+      enhancementType: type,
+      documentId: document.id
+    });
   };
 
   const handleFeedback = async (rating: 'good' | 'ok' | 'poor' | 'decline') => {
@@ -148,8 +167,9 @@ export default function AiAssistantPanel({
   };
 
   const dismissSuggestion = () => {
-    setCurrentSuggestion("Looking for ways to improve your text...");
+    setCurrentSuggestion("");
     setLastEnhancement(null);
+    setShowFeedback(false);
     toast({
       title: "Suggestion Dismissed",
       description: "The suggestion has been dismissed.",
@@ -195,7 +215,7 @@ export default function AiAssistantPanel({
             <div className="flex-1">
               <p className="text-sm font-medium text-neutral-800 mb-1">Enhancement Suggestion</p>
               <p className="text-sm text-neutral-600 break-words">
-                {lastEnhancement ? `Enhanced: ${lastEnhancement.substring(0, 100)}${lastEnhancement.length > 100 ? '...' : ''}` : currentSuggestion}
+                {lastEnhancement ? `Enhanced: ${lastEnhancement.substring(0, 100)}${lastEnhancement.length > 100 ? '...' : ''}` : (currentSuggestion || "Ready to enhance your text...")}
               </p>
               <div className="flex items-center space-x-2 mt-2">
                 {lastEnhancement ? (

@@ -192,11 +192,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
 
-      const { text, enhancementType, documentId, agentType = "writing-assistant" } = req.body;
+      const { text, enhancementType, documentId, agentType = "writing-assistant", cursorPosition, isFromCursor } = req.body;
       
       // Temporarily removed premium locks - all features available
 
       const validatedData = aiEnhanceSchema.parse({ text, enhancementType, documentId });
+      
+      // Store additional parameters for cursor-aware processing
+      const enhancementContext = {
+        ...validatedData,
+        cursorPosition: cursorPosition || 0,
+        isFromCursor: Boolean(isFromCursor)
+      };
       
       // Real AI enhancement using Gemini
       const apiKey = process.env.GEMINI_API_KEY;
@@ -214,7 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get community memory insights for this agent type
       const recentInteractions = await storage.getAiInteractionsByUser(user.id);
       const goodPatterns = recentInteractions
-        .filter(i => i.agentType === agentType && i.userRating && i.userRating >= 4)
+        .filter(i => i.agentType === agentType && i.userRating && parseInt(String(i.userRating)) >= 4)
         .slice(-3)
         .map(i => `Previous good approach: ${i.enhancementType}`)
         .join('\n');
@@ -222,24 +229,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const memoryGuidance = goodPatterns ? `\n\nLearning from positive feedback: ${goodPatterns}` : '';
 
       let prompt = "";
-      switch (validatedData.enhancementType) {
-        case "clarity":
-          prompt = `Please rewrite this text to improve clarity and readability, making it easier to understand while preserving the original meaning.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
-          break;
-        case "polish":
-          prompt = `Please polish and refine this text, improving its flow, grammar, and overall quality while maintaining the author's voice.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
-          break;
-        case "auto-complete":
-          prompt = `Please continue writing this text naturally, adding 2-3 more sentences that flow well with the existing content and match the established tone.${documentContext}${memoryGuidance}\n\nText to continue: "${validatedData.text}"`;
-          break;
-        case "market-insights":
-          prompt = `Please enhance this text to make it more engaging and commercially appealing for readers, while keeping the core message intact and following market best practices.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
-          break;
-        case "continue":
-          prompt = `Please continue this story or text naturally, adding meaningful content that builds on what's already written and maintains narrative consistency.${documentContext}${memoryGuidance}\n\nText to continue: "${validatedData.text}"`;
-          break;
-        default:
-          prompt = `Please improve and enhance this text, making it more engaging and better written while following the provided context and instructions.${documentContext}${memoryGuidance}\n\nText to enhance: "${validatedData.text}"`;
+      
+      // Handle cursor-aware continuations differently
+      if (enhancementContext.isFromCursor && (enhancementContext.enhancementType === 'continue' || enhancementContext.enhancementType === 'auto-complete')) {
+        const contextBefore = enhancementContext.text.substring(Math.max(0, enhancementContext.text.length - 600));
+        prompt = `You are continuing a story/text from the cursor position. The context before the cursor is provided below. Continue writing naturally from where the cursor is positioned, adding 2-3 sentences that flow seamlessly from the existing content. Do NOT rewrite or modify any existing text - only add new content that continues from the cursor position.
+
+Context before cursor (last 600 chars): "${contextBefore}"
+
+${documentContext}${memoryGuidance}
+
+Continue writing from this point:`;
+      } else {
+        // Standard enhancement prompts
+        switch (enhancementContext.enhancementType) {
+          case "clarity":
+            prompt = `Please rewrite this text to improve clarity and readability, making it easier to understand while preserving the original meaning.${documentContext}${memoryGuidance}\n\nText to enhance: "${enhancementContext.text}"`;
+            break;
+          case "polish":
+            prompt = `Please polish and refine this text, improving its flow, grammar, and overall quality while maintaining the author's voice.${documentContext}${memoryGuidance}\n\nText to enhance: "${enhancementContext.text}"`;
+            break;
+          case "auto-complete":
+            prompt = `Please continue writing this text naturally, adding 2-3 more sentences that flow well with the existing content and match the established tone.${documentContext}${memoryGuidance}\n\nText to continue: "${enhancementContext.text}"`;
+            break;
+          case "market-insights":
+            prompt = `Please enhance this text to make it more engaging and commercially appealing for readers, while keeping the core message intact and following market best practices.${documentContext}${memoryGuidance}\n\nText to enhance: "${enhancementContext.text}"`;
+            break;
+          case "continue":
+            prompt = `Please continue this story or text naturally, adding meaningful content that builds on what's already written and maintains narrative consistency.${documentContext}${memoryGuidance}\n\nText to continue: "${enhancementContext.text}"`;
+            break;
+          default:
+            prompt = `Please improve and enhance this text, making it more engaging and better written while following the provided context and instructions.${documentContext}${memoryGuidance}\n\nText to enhance: "${enhancementContext.text}"`;
+        }
       }
       
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
@@ -268,11 +289,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log AI interaction with user rating initialization
       await storage.createAiInteraction({
         userId: user.id,
-        documentId: validatedData.documentId || null,
+        documentId: enhancementContext.documentId || null,
         agentType,
-        inputText: validatedData.text,
+        inputText: enhancementContext.text,
         outputText: enhancement.enhancedText,
-        enhancementType: validatedData.enhancementType,
+        enhancementType: enhancementContext.enhancementType,
         qualityScore: enhancement.qualityScore,
         userRating: null, // Will be updated when user provides feedback
         isPremiumFeature: false,
@@ -281,11 +302,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         enhancedText: enhancement.enhancedText,
-        originalText: validatedData.text,
-        enhancementType: validatedData.enhancementType,
+        originalText: enhancementContext.text,
+        enhancementType: enhancementContext.enhancementType,
         improvements: enhancement.improvements,
         qualityScore: enhancement.qualityScore,
         agentType,
+        cursorPosition: enhancementContext.cursorPosition,
+        isFromCursor: enhancementContext.isFromCursor
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -616,7 +639,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         outputText: JSON.stringify(output),
         enhancementType: action,
         qualityScore: userFeedback === 'good' ? '9.0' : userFeedback === 'ok' ? '7.0' : userFeedback === 'poor' ? '4.0' : '5.0',
-        userRating: userFeedback === 'good' ? 5 : userFeedback === 'ok' ? 4 : userFeedback === 'poor' ? 2 : 1,
+        userRating: (userFeedback === 'good' ? 5 : userFeedback === 'ok' ? 4 : userFeedback === 'poor' ? 2 : 1).toString(),
         isPremiumFeature: false,
         responseTime: 1000,
       });
@@ -643,8 +666,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const insights = [];
       
       if (interactions.length > 0) {
-        const goodResponses = interactions.filter(i => i.userRating && i.userRating >= 4);
-        const poorResponses = interactions.filter(i => i.userRating && i.userRating <= 2);
+        const goodResponses = interactions.filter(i => i.userRating && parseInt(String(i.userRating)) >= 4);
+        const poorResponses = interactions.filter(i => i.userRating && parseInt(String(i.userRating)) <= 2);
         
         if (goodResponses.length > poorResponses.length) {
           insights.push("Your recent AI interactions show positive feedback patterns - agents are learning your preferences");
@@ -653,7 +676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const agentPerformance = interactions.reduce((acc, i) => {
           if (!acc[i.agentType]) acc[i.agentType] = { total: 0, good: 0 };
           acc[i.agentType].total++;
-          if (i.userRating && i.userRating >= 4) acc[i.agentType].good++;
+          if (i.userRating && parseInt(String(i.userRating)) >= 4) acc[i.agentType].good++;
           return acc;
         }, {} as Record<string, {total: number, good: number}>);
         
