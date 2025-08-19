@@ -9,10 +9,12 @@ TACWrite is a full-stack web application built for AI-powered writing assistance
 Preferred communication style: Simple, everyday language.
 
 **Editor Requirements:**
-- Cursor awareness for AI continuations using 600 characters before cursor
+- ✓ FIXED: Cursor awareness for AI continuations using 600 characters before cursor
+- ✓ FIXED: Precise cursor position detection and text insertion without content replacement
 - No pre-filled examples in enhancement or instruction boxes
 - Undo/redo functionality with keyboard shortcuts (Ctrl+Z, Ctrl+Y)
 - Clean UI without placeholder text interfering with user input
+- AI enhancement quality target: 0.15+ improvement metrics with reflect-and-revisit process
 
 ## System Architecture
 
@@ -35,9 +37,10 @@ The frontend is structured with clear separation of concerns:
 **Editor Features (Added August 2025):**
 - Document undo/redo functionality with 50-state history
 - Keyboard shortcuts (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
-- Cursor-aware AI continuations
+- ✓ FIXED: Cursor-aware AI continuations with precise insertion
 - Clean input boxes without pre-filled examples
 - Real-time auto-save with visual feedback
+- Reflect-and-revisit AI enhancement process with 0.15+ improvement metrics
 
 ### Backend Architecture
 The server uses **Express.js** with **TypeScript** in ESM format:
@@ -89,8 +92,10 @@ The application features a sophisticated multi-agent AI architecture with simpli
 - Premium feature gating with usage tracking
 - Health monitoring and automatic error recovery
 - Contextual pattern recognition for writing improvements
-- Cursor-aware continuations that don't overwrite existing text
+- ✓ FIXED: Cursor-aware continuations with precise insertion at cursor position
 - Empty input boxes without pre-filled examples
+- Enhanced output length targeting ~1000 words for substantial continuations
+- Reflect-and-revisit quality improvement process with 0.15+ improvement metrics
 
 ### Premium Feature System
 The application implements a freemium model with:
