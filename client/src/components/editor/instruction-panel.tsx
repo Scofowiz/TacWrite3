@@ -12,7 +12,7 @@ interface InstructionPanelProps {
 
 export default function InstructionPanel({ document }: InstructionPanelProps) {
   const [context, setContext] = useState(() => {
-    if (!document) return "Academic research paper for environmental science course. Target audience: undergraduate students and professors. Formal tone with clear evidence-based arguments.";
+    if (!document) return "";
     
     if (document.context) {
       if (typeof document.context === 'string') return document.context;
@@ -21,7 +21,7 @@ export default function InstructionPanel({ document }: InstructionPanelProps) {
       }
     }
     
-    return "Academic research paper for environmental science course. Target audience: undergraduate students and professors. Formal tone with clear evidence-based arguments.";
+    return "";
   });
   const [currentGoal, setCurrentGoal] = useState("improve-clarity");
 
@@ -72,7 +72,7 @@ export default function InstructionPanel({ document }: InstructionPanelProps) {
             Document Context
           </Label>
           <Textarea
-            placeholder="Provide context about your writing goals, target audience, tone, etc."
+            placeholder="Describe your writing goals, target audience, tone, style preferences, etc."
             value={context}
             onChange={(e) => setContext(e.target.value)}
             className="h-24 text-sm resize-none"
