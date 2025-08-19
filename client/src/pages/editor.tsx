@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import DocumentSidebar from "@/components/editor/document-sidebar";
 import DocumentEditor from "@/components/editor/document-editor";
@@ -13,6 +13,8 @@ export default function EditorView() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [aiAssistantVisible, setAiAssistantVisible] = useState(true);
+  const [documentContent, setDocumentContent] = useState("");
+  const [documentTitle, setDocumentTitle] = useState("");
   const { toast } = useToast();
 
   const { data: user } = useQuery<User>({
@@ -36,6 +38,8 @@ export default function EditorView() {
     onSuccess: (newDocument: Document) => {
       queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       setSelectedDocumentId(newDocument.id);
+      setDocumentTitle(newDocument.title);
+      setDocumentContent(newDocument.content);
       toast({
         title: "Document created",
         description: "New document created successfully",
@@ -50,8 +54,28 @@ export default function EditorView() {
     },
   });
 
+  const updateDocumentMutation = useMutation({
+    mutationFn: async (updates: { title?: string; content?: string; wordCount?: number }) => {
+      const response = await apiRequest("PATCH", `/api/documents/${selectedDocumentId}`, updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents", selectedDocumentId] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to save document: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleDocumentSelect = (document: Document) => {
     setSelectedDocumentId(document.id);
+    setDocumentTitle(document.title);
+    setDocumentContent(document.content);
   };
 
   const handleNewDocument = () => {
@@ -63,15 +87,37 @@ export default function EditorView() {
   };
 
   const handlePremiumFeature = () => {
-    if (user?.subscriptionTier === "premium") {
-      toast({
-        title: "Premium Feature",
-        description: "This premium feature is now available!",
-      });
-      return;
-    }
-    setShowPremiumModal(true);
+    // All features are now available - no premium locks
+    toast({
+      title: "Feature Available",
+      description: "All AI features are now accessible!",
+    });
   };
+
+  const handleContentChange = (content: string) => {
+    setDocumentContent(content);
+    const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
+    
+    // Auto-save after 2 seconds of no typing
+    const timeoutId = setTimeout(() => {
+      updateDocumentMutation.mutate({ content, wordCount });
+    }, 2000);
+    
+    return () => clearTimeout(timeoutId);
+  };
+
+  const handleTitleChange = (title: string) => {
+    setDocumentTitle(title);
+    updateDocumentMutation.mutate({ title });
+  };
+
+  // Update local state when selected document changes
+  useEffect(() => {
+    if (selectedDocument) {
+      setDocumentTitle(selectedDocument.title);
+      setDocumentContent(selectedDocument.content);
+    }
+  }, [selectedDocument]);
 
   // Select first document by default
   if (documents && documents.length > 0 && !selectedDocumentId) {
@@ -110,24 +156,23 @@ export default function EditorView() {
                       <div className="mb-6">
                         <input
                           type="text"
-                          defaultValue={selectedDocument.title}
+                          value={documentTitle || ""}
+                          onChange={(e) => handleTitleChange(e.target.value)}
                           className="text-2xl font-bold w-full border-none outline-none resize-none bg-transparent"
                           placeholder="Document title..."
-                          readOnly
+                          data-testid="input-document-title"
                         />
                       </div>
 
                       {/* Content with AI suggestions */}
                       <div className="space-y-4 text-neutral-800 leading-relaxed prose-editor">
-                        <div
-                          contentEditable
-                          className="min-h-[400px] outline-none"
-                          dangerouslySetInnerHTML={{ __html: selectedDocument.content }}
-                          suppressContentEditableWarning={true}
+                        <textarea
+                          value={documentContent || ""}
+                          onChange={(e) => handleContentChange(e.target.value)}
+                          className="min-h-[400px] w-full border-none outline-none resize-none bg-transparent text-base leading-relaxed"
+                          placeholder="Start writing..."
+                          data-testid="textarea-document-content"
                         />
-                        
-                        {/* Cursor indicator */}
-                        <div className="cursor-indicator"></div>
                       </div>
                     </div>
                   </div>

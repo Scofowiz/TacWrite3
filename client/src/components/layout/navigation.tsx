@@ -75,39 +75,19 @@ export default function Navigation() {
               >
                 <i className="fas fa-user-graduate mr-2"></i>
                 Coach
-                {user?.subscriptionTier === "premium" && <Badge variant="secondary" className="ml-1 text-xs">Premium</Badge>}
               </Button>
             </Link>
           </div>
 
           {/* User Actions */}
           <div className="flex items-center space-x-4">
-            {/* Usage Indicator */}
-            {user && user.subscriptionTier === "free" && (
-              <div className="hidden sm:flex items-center space-x-2 text-sm text-neutral-600">
-                <div className="w-16 bg-neutral-200 rounded-full h-2">
-                  <div 
-                    className="bg-primary h-2 rounded-full transition-all" 
-                    style={{ width: `${usagePercentage}%` }}
-                  ></div>
-                </div>
-                <span className="text-xs">
-                  {user.usageCount}/{user.maxUsage} free assists
-                </span>
-              </div>
-            )}
-
-            {/* Upgrade Button */}
-            {user?.subscriptionTier === "free" && (
-              <Button
-                onClick={() => setShowPremiumModal(true)}
-                className="bg-secondary text-white hover:bg-secondary/90"
-                size="sm"
-              >
-                <i className="fas fa-crown mr-2"></i>
-                Upgrade Pro
-              </Button>
-            )}
+            {/* All Features Available Badge */}
+            <div className="hidden sm:flex items-center space-x-2">
+              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                <i className="fas fa-check mr-1"></i>
+                All Features Unlocked
+              </Badge>
+            </div>
 
             {/* User Menu */}
             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">

@@ -113,7 +113,7 @@ export default function DocumentSidebar({
             
             <button
               onClick={onPremiumFeature}
-              className="w-full flex items-center justify-between p-2 hover:bg-neutral-50 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between p-2 bg-secondary/5 rounded-lg hover:bg-secondary/10 transition-colors"
             >
               <div className="flex items-center space-x-2">
                 <div className="w-6 h-6 bg-secondary rounded flex items-center justify-center">
@@ -121,12 +121,12 @@ export default function DocumentSidebar({
                 </div>
                 <span className="text-sm text-neutral-700">Autonomous Writer</span>
               </div>
-              <i className="fas fa-crown text-secondary text-xs"></i>
+              <div className="w-2 h-2 bg-secondary rounded-full"></div>
             </button>
 
             <button
               onClick={onPremiumFeature}
-              className="w-full flex items-center justify-between p-2 hover:bg-neutral-50 rounded-lg transition-colors"
+              className="w-full flex items-center justify-between p-2 bg-orange-500/5 rounded-lg hover:bg-orange-500/10 transition-colors"
             >
               <div className="flex items-center space-x-2">
                 <div className="w-6 h-6 bg-orange-500 rounded flex items-center justify-center">
@@ -134,7 +134,7 @@ export default function DocumentSidebar({
                 </div>
                 <span className="text-sm text-neutral-700">WFA Agent</span>
               </div>
-              <i className="fas fa-crown text-secondary text-xs"></i>
+              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
             </button>
           </div>
         </div>

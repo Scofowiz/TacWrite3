@@ -55,7 +55,7 @@ export default function AiAssistantPanel({
   });
 
   const handleEnhancement = (type: string) => {
-    const text = selectedText || "Sample text for enhancement";
+    const text = selectedText || document.content || "Sample text for enhancement";
     enhanceTextMutation.mutate({ text, enhancementType: type });
   };
 
@@ -135,27 +135,23 @@ export default function AiAssistantPanel({
             <Button
               variant="outline"
               size="sm"
-              onClick={onPremiumFeature}
-              className="p-2 h-auto flex flex-col items-center text-xs relative"
+              onClick={() => handleEnhancement("auto-complete")}
+              disabled={enhanceTextMutation.isPending}
+              className="p-2 h-auto flex flex-col items-center text-xs"
             >
-              <i className="fas fa-crown text-secondary mb-1"></i>
+              <i className="fas fa-magic text-secondary mb-1"></i>
               <span>Auto-Complete</span>
-              <div className="premium-lock">
-                <i className="fas fa-lock text-white text-xs"></i>
-              </div>
             </Button>
             
             <Button
               variant="outline"
               size="sm"
-              onClick={onPremiumFeature}
-              className="p-2 h-auto flex flex-col items-center text-xs relative"
+              onClick={() => handleEnhancement("market-insights")}
+              disabled={enhanceTextMutation.isPending}
+              className="p-2 h-auto flex flex-col items-center text-xs"
             >
               <i className="fas fa-chart-line text-orange-500 mb-1"></i>
               <span>Market Insights</span>
-              <div className="premium-lock">
-                <i className="fas fa-lock text-white text-xs"></i>
-              </div>
             </Button>
           </div>
         </div>
