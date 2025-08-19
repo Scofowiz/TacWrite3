@@ -83,15 +83,14 @@ export default function AiAssistantPanel({
 
   const enhanceTextMutation = useMutation({
     mutationFn: async (data: { text: string; enhancementType: string; documentId: string }) => {
-      // Get current cursor position
-      const selection = window.getSelection();
+      // Get current cursor position from the textarea
       let cursorPosition = 0;
-      let isFromCursor = false;
+      let isFromCursor = data.enhancementType === 'continue' || data.enhancementType === 'auto-complete';
       
-      if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        cursorPosition = range.startOffset;
-        isFromCursor = data.enhancementType === 'continue' || data.enhancementType === 'auto-complete';
+      // Find the textarea element to get accurate cursor position
+      const textarea = document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
+      if (textarea && isFromCursor) {
+        cursorPosition = textarea.selectionStart;
       }
 
       const response = await apiRequest("POST", "/api/ai/enhance", {
@@ -156,12 +155,43 @@ export default function AiAssistantPanel({
   };
 
   const applyEnhancement = () => {
-    if (lastEnhancement && onTextUpdate) {
-      onTextUpdate(lastEnhancement);
+    if (lastEnhancement && onTextUpdate && lastEnhancementData) {
+      // Check if this was a cursor-aware continuation
+      if (lastEnhancementData.isFromCursor && lastEnhancementData.cursorPosition !== undefined) {
+        // Get the current document content and cursor position
+        const textarea = document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
+        const currentContent = document?.content || '';
+        
+        // Use the stored cursor position from when the enhancement was requested
+        const cursorPos = lastEnhancementData.cursorPosition;
+        
+        // Insert the enhancement at cursor position without overwriting
+        const beforeCursor = currentContent.substring(0, cursorPos);
+        const afterCursor = currentContent.substring(cursorPos);
+        const newContent = beforeCursor + lastEnhancement + afterCursor;
+        
+        onTextUpdate(newContent);
+        
+        // Set cursor position after the inserted text
+        if (textarea) {
+          setTimeout(() => {
+            const newCursorPos = cursorPos + lastEnhancement.length;
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+            textarea.focus();
+          }, 10);
+        }
+      } else {
+        // For non-cursor enhancements, replace the selected text or entire content
+        onTextUpdate(lastEnhancement);
+      }
+      
       setLastEnhancement(null);
+      setLastEnhancementData(null);
       toast({
         title: "Enhancement Applied",
-        description: "The enhanced text has been applied to your document.",
+        description: lastEnhancementData.isFromCursor 
+          ? "Text continuation added at cursor position." 
+          : "The enhanced text has been applied to your document.",
       });
     }
   };
