@@ -8,6 +8,12 @@ TACWrite is a full-stack web application built for AI-powered writing assistance
 
 Preferred communication style: Simple, everyday language.
 
+**Editor Requirements:**
+- Cursor awareness for AI continuations using 600 characters before cursor
+- No pre-filled examples in enhancement or instruction boxes
+- Undo/redo functionality with keyboard shortcuts (Ctrl+Z, Ctrl+Y)
+- Clean UI without placeholder text interfering with user input
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -25,6 +31,13 @@ The frontend is structured with clear separation of concerns:
 - `/hooks` - Custom React hooks for business logic
 - `/lib` - Utility functions and configuration
 - `/types` - TypeScript type definitions
+
+**Editor Features (Added August 2025):**
+- Document undo/redo functionality with 50-state history
+- Keyboard shortcuts (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+- Cursor-aware AI continuations
+- Clean input boxes without pre-filled examples
+- Real-time auto-save with visual feedback
 
 ### Backend Architecture
 The server uses **Express.js** with **TypeScript** in ESM format:
@@ -59,6 +72,7 @@ The application features a sophisticated multi-agent AI architecture with simpli
 - **Community Memory Pool**: Shared intelligence system for agent collaboration and learning
 - **Agent Orchestrator**: Central coordination managing 6 specialized agent types
 - **Simplified Text Generation**: Clean, dependency-free AI client system with mock and production modes
+- **Cursor-Aware Context**: Uses 600 characters before cursor position for proper continuation handling
 
 **Agent Types:**
 - **Writing Assistant**: Basic text enhancement and improvement
@@ -69,12 +83,14 @@ The application features a sophisticated multi-agent AI architecture with simpli
 - **Doctor Agent**: Issue diagnosis and targeted quality improvements
 
 **Key Features:**
-- Reinforcement learning through user feedback loops
+- Reinforcement learning through user feedback loops with rating system
 - Quality scoring and confidence metrics
 - Cross-agent memory sharing for collaborative intelligence
 - Premium feature gating with usage tracking
 - Health monitoring and automatic error recovery
 - Contextual pattern recognition for writing improvements
+- Cursor-aware continuations that don't overwrite existing text
+- Empty input boxes without pre-filled examples
 
 ### Premium Feature System
 The application implements a freemium model with:
