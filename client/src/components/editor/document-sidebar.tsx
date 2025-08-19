@@ -7,6 +7,7 @@ interface DocumentSidebarProps {
   selectedDocumentId: string | null;
   onDocumentSelect: (document: Document) => void;
   onPremiumFeature: () => void;
+  onNewDocument: () => void;
   isLoading: boolean;
 }
 
@@ -15,6 +16,7 @@ export default function DocumentSidebar({
   selectedDocumentId,
   onDocumentSelect,
   onPremiumFeature,
+  onNewDocument,
   isLoading
 }: DocumentSidebarProps) {
   
@@ -51,7 +53,12 @@ export default function DocumentSidebar({
     <div className="w-64 bg-white border-r border-neutral-200 flex flex-col">
       {/* Document List Header */}
       <div className="p-4 border-b border-neutral-200">
-        <Button className="w-full" size="sm">
+        <Button 
+          className="w-full" 
+          size="sm"
+          onClick={onNewDocument}
+          data-testid="button-new-document"
+        >
           <i className="fas fa-plus mr-2"></i>
           New Document
         </Button>

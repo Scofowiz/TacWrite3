@@ -188,13 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { text, enhancementType, documentId, agentType = "writing-assistant" } = req.body;
       
-      // Check usage limits for free users
-      if (user.subscriptionTier === "free" && user.usageCount >= user.maxUsage) {
-        return res.status(403).json({ 
-          message: "Usage limit reached. Upgrade to premium for unlimited access.",
-          requiresUpgrade: true 
-        });
-      }
+      // Temporarily removed premium locks - all features available
 
       const validatedData = aiEnhanceSchema.parse({ text, enhancementType, documentId });
       
@@ -265,13 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { feature } = req.params;
       
-      // Check premium access
-      if (user.subscriptionTier !== "premium") {
-        return res.status(403).json({ 
-          message: "Premium feature requires subscription upgrade.",
-          requiresUpgrade: true 
-        });
-      }
+      // Temporarily removed premium locks - all features available
 
       const { text, context, agentType = "autonomous-writer" } = req.body;
       
@@ -308,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         documentId: req.body.documentId || null,
         agentType: responseAgent,
         inputText: text,
-        outputText: result.text,
+        outputText: 'enhancedText' in result ? result.enhancedText : result.text,
         enhancementType: feature,
         qualityScore: result.qualityScore,
         isPremiumFeature: true,
@@ -316,7 +304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       res.json({
-        result: result.text,
+        result: 'enhancedText' in result ? result.enhancedText : result.text,
         originalText: text,
         feature,
         qualityScore: result.qualityScore,
@@ -338,13 +326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { prompt, agents = ["writing-assistant", "contextual-enhancer"], memory, communityKnowledge } = req.body;
       
-      // Check usage limits
-      if (user.subscriptionTier === "free" && user.usageCount >= user.maxUsage) {
-        return res.status(403).json({ 
-          message: "Usage limit reached. Upgrade to premium for unlimited access.",
-          requiresUpgrade: true 
-        });
-      }
+      // Temporarily removed premium locks - all features available
 
       // Multi-agent response coordination
       const agentResponses = await Promise.all(
@@ -412,13 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
 
-      // Check premium access
-      if (user.subscriptionTier !== "premium") {
-        return res.status(403).json({ 
-          message: "Premium writing coach requires a premium subscription.",
-          requiresUpgrade: true 
-        });
-      }
+      // Temporarily removed premium locks - all features available
 
       const { sessionType, recentWriting, specificQuestion } = req.body;
 
@@ -426,7 +402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const interactions = await storage.getAiInteractionsByUser(user.id);
       const recentInteractions = interactions.slice(-10);
       const averageQuality = recentInteractions.length > 0 
-        ? recentInteractions.reduce((sum, i) => sum + parseFloat(i.qualityScore), 0) / recentInteractions.length
+        ? recentInteractions.reduce((sum, i) => sum + parseFloat(i.qualityScore || "7.5"), 0) / recentInteractions.length
         : 7.5;
       
       const wordsWritten = recentWriting ? recentWriting.length : 
@@ -618,7 +594,7 @@ function generateStyleInsights(interactions: any[], avgQuality: number): string[
       return acc;
     }, {} as Record<string, number>);
     
-    const topAgent = Object.entries(agentUsage).sort(([,a], [,b]) => b - a)[0];
+    const topAgent = Object.entries(agentUsage).sort(([,a], [,b]) => (b as number) - (a as number))[0];
     
     if (topAgent) {
       switch (topAgent[0]) {

@@ -1,16 +1,23 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import DocumentSidebar from "@/components/editor/document-sidebar";
 import DocumentEditor from "@/components/editor/document-editor";
 import AiAssistantPanel from "@/components/editor/ai-assistant-panel";
 import InstructionPanel from "@/components/editor/instruction-panel";
 import PremiumUpgradeModal from "@/components/modals/premium-upgrade-modal";
-import { Document } from "@shared/schema";
+import { Document, User } from "@shared/schema";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function EditorView() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [aiAssistantVisible, setAiAssistantVisible] = useState(true);
+  const { toast } = useToast();
+
+  const { data: user } = useQuery<User>({
+    queryKey: ["/api/user/current"],
+  });
 
   const { data: documents, isLoading: documentsLoading } = useQuery<Document[]>({
     queryKey: ["/api/documents"],
@@ -21,11 +28,48 @@ export default function EditorView() {
     enabled: !!selectedDocumentId,
   });
 
+  const createDocumentMutation = useMutation({
+    mutationFn: async (newDoc: { title: string; content?: string }) => {
+      const response = await apiRequest("POST", "/api/documents", newDoc);
+      return response.json();
+    },
+    onSuccess: (newDocument: Document) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      setSelectedDocumentId(newDocument.id);
+      toast({
+        title: "Document created",
+        description: "New document created successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create document: " + error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleDocumentSelect = (document: Document) => {
     setSelectedDocumentId(document.id);
   };
 
+  const handleNewDocument = () => {
+    const newDocTitle = `Untitled Document ${(documents?.length || 0) + 1}`;
+    createDocumentMutation.mutate({
+      title: newDocTitle,
+      content: "",
+    });
+  };
+
   const handlePremiumFeature = () => {
+    if (user?.subscriptionTier === "premium") {
+      toast({
+        title: "Premium Feature",
+        description: "This premium feature is now available!",
+      });
+      return;
+    }
     setShowPremiumModal(true);
   };
 
@@ -42,6 +86,7 @@ export default function EditorView() {
         selectedDocumentId={selectedDocumentId}
         onDocumentSelect={handleDocumentSelect}
         onPremiumFeature={handlePremiumFeature}
+        onNewDocument={handleNewDocument}
         isLoading={documentsLoading}
       />
 
