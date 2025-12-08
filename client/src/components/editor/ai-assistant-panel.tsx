@@ -414,7 +414,107 @@ export default function AiAssistantPanel({
   };
 
   // Chat handlers
-  const handleChatSubmit = (message?: string) => {
+  const handleChatSubmit = async (message?: string) => {
+    const messageText = message || chatInput.trim();
+    if (!messageText) return;
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: messageText,
+      timestamp: new Date()
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput("");
+
+    // Add AI "thinking" message
+    const aiPlaceholder: ChatMessage = {
+      role: 'ai',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true
+    };
+    setChatMessages(prev => [...prev, aiPlaceholder]);
+    setIsStreaming(true);
+
+    try {
+      // Call the chat endpoint with context
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messageText,
+          documentContext: document.content,
+          documentTitle: document.title,
+          conversationHistory: chatMessages.slice(-6) // Last 6 messages for context
+        })
+      });
+
+      if (!response.ok) throw new Error('Chat failed');
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let aiResponse = '';
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.chunk) {
+                aiResponse += data.chunk;
+                // Update the last message with accumulated response
+                setChatMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg.role === 'ai') {
+                    lastMsg.content = aiResponse;
+                    lastMsg.isStreaming = true;
+                  }
+                  return newMessages;
+                });
+              }
+              
+              if (data.done) {
+                // Mark streaming complete
+                setChatMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = newMessages[newMessages.length - 1];
+                  if (lastMsg.role === 'ai') {
+                    lastMsg.content = aiResponse;
+                    lastMsg.isStreaming = false;
+                  }
+                  return newMessages;
+                });
+                setIsStreaming(false);
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+      toast({
+        title: "Chat Error",
+        description: "Failed to get AI response. Please try again.",
+        variant: "destructive"
+      });
+      // Remove the placeholder message on error
+      setChatMessages(prev => prev.slice(0, -1));
+      setIsStreaming(false);
+    }
+  };
+
+  const handleChatSubmitOld = (message?: string) => {
     const messageText = message || chatInput.trim();
     if (!messageText) return;
 

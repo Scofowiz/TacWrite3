@@ -736,6 +736,90 @@ Text to enhance: "${enhancementContext.text}"${jsonInstruction}`;
     }
   });
 
+  // AI Chat endpoint - conversational and context-aware
+  app.post("/api/ai/chat", async (req, res) => {
+    try {
+      const user = await storage.getUserByUsername("builder");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const { message, documentContext, conversationHistory } = req.body;
+
+      // Set up SSE headers for streaming response
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      // Build context-aware prompt
+      const contextInfo = documentContext ? `
+
+Current document context (last 500 chars):
+"""
+${documentContext.slice(-500)}
+"""
+
+Document stats:
+- Word count: ${documentContext.split(/\s+/).length}
+- Title: ${req.body.documentTitle || 'Untitled'}
+` : '';
+
+      const conversationContext = conversationHistory && conversationHistory.length > 0
+        ? `\n\nRecent conversation:\n${conversationHistory.slice(-3).map((msg: any) => 
+            `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.content}`
+          ).join('\n')}\n`
+        : '';
+
+      const chatPrompt = `You are a helpful, friendly AI writing assistant. You're having a natural conversation with a writer about their work.
+
+${contextInfo}${conversationContext}
+
+User's message: "${message}"
+
+Respond naturally and helpfully. You can:
+- Answer questions about their writing
+- Offer suggestions and feedback
+- Brainstorm ideas
+- Discuss plot, characters, or themes
+- Help with specific writing challenges
+- Be encouraging and supportive
+
+Keep your response conversational (2-4 sentences unless asked for more detail). Be specific and refer to their document when relevant.`;
+
+      console.log('[AI Chat] Processing:', message);
+
+      try {
+        const aiClient = createAIServerClient();
+        const stream = await aiClient.chat({
+          messages: [{ role: 'user', content: chatPrompt }],
+          stream: true
+        });
+
+        let fullResponse = '';
+
+        for await (const chunk of stream) {
+          const text = chunk.choices[0]?.delta?.content || '';
+          if (text) {
+            fullResponse += text;
+            res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
+          }
+        }
+
+        res.write(`data: ${JSON.stringify({ done: true, fullText: fullResponse })}\n\n`);
+        res.end();
+
+        console.log('[AI Chat] Response sent:', fullResponse.substring(0, 100) + '...');
+      } catch (error) {
+        console.error('[AI Chat] Error:', error);
+        res.write(`data: ${JSON.stringify({ error: 'Failed to get AI response' })}\n\n`);
+        res.end();
+      }
+    } catch (error) {
+      console.error('[AI Chat] Error:', error);
+      res.status(500).json({ message: "Failed to process chat" });
+    }
+  });
+
   // SSE Streaming AI Enhancement endpoint
   app.post("/api/ai/enhance/stream", async (req, res) => {
     try {
