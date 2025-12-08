@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provider Switching Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>TacWrite3 Provider Switching Test</h1>
+    
+    <div class="test-section">
+        <h2>Current Provider Status</h2>
+        <div id="current-provider" class="status info"></div>
+        <button onclick="checkCurrentProvider()">Check Current Provider</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Provider Switching</h2>
+        <p>Select a provider and test if the backend actually uses it:</p>
+        
+        <button onclick="testProvider('gemini')">Test Gemini</button>
+        <button onclick="testProvider('groq')">Test Groq</button>
+        <button onclick="testProvider('kimiki2')">Test Kimiki2</button>
+        <button onclick="testProvider('cloudflare')">Test Cloudflare</button>
+        
+        <div id="test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Real Enhancement Test</h2>
+        <p>Test actual text enhancement with different providers:</p>
+        
+        <textarea id="test-text" rows="4" cols="60">This is a simple test text to enhance with different AI providers.</textarea><br>
+        <button onclick="enhanceWithSelectedProvider()">Enhance with Current Provider</button>
+        
+        <div id="enhancement-result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api/ai';
+        
+        function checkCurrentProvider() {
+            const provider = localStorage.getItem('ai-provider-preference') || 'gemini';
+            document.getElementById('current-provider').innerHTML = 
+                `<strong>Current Provider:</strong> ${provider}`;
+            return provider;
+        }
+
+        async function testProvider(providerName) {
+            const resultsDiv = document.getElementById('test-results');
+            
+            // Set the provider
+            localStorage.setItem('ai-provider-preference', providerName);
+            checkCurrentProvider();
+            
+            resultsDiv.innerHTML = `<div class="status info">Testing ${providerName}...</div>`;
+            
+            try {
+                // Test the enhancement endpoint directly
+                const response = await fetch(`${API_BASE}/enhance`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: `Provider test for ${providerName}`,
+                        provider: providerName
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultsDiv.innerHTML += `
+                        <div class="status success">
+                            <strong>Success!</strong><br>
+                            Provider: ${providerName}<br>
+                            Response: ${JSON.stringify(result, null, 2)}
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML += `
+                        <div class="status error">
+                            <strong>Error!</strong><br>
+                            Provider: ${providerName}<br>
+                            ${result.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `
+                    <div class="status error">
+                        <strong>Request Failed!</strong><br>
+                        Provider: ${providerName}<br>
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function enhanceWithSelectedProvider() {
+            const provider = checkCurrentProvider();
+            const text = document.getElementById('test-text').value;
+            const resultDiv = document.getElementById('enhancement-result');
+            
+            resultDiv.innerHTML = `<div class="status info">Enhancing with ${provider}...</div>`;
+            
+            try {
+                const response = await fetch(`${API_BASE}/enhance`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        provider: provider
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML += `
+                        <div class="status success">
+                            <strong>Enhanced Text (${provider}):</strong><br>
+                            <pre>${result.text}</pre>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML += `
+                        <div class="status error">
+                            <strong>Enhancement Failed!</strong><br>
+                            ${result.error || 'Unknown error'}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML += `
+                    <div class="status error">
+                        <strong>Request Failed!</strong><br>
+                        Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Check current provider on load
+        checkCurrentProvider();
+    </script>
+</body>
+</html>

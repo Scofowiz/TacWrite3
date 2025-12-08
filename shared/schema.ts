@@ -73,6 +73,18 @@ export const achievements = pgTable("achievements", {
   unlockedAt: timestamp("unlocked_at").notNull().default(sql`now()`),
 });
 
+// Document Versions table
+export const documentVersions = pgTable("document_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  content: text("content").notNull(),
+  title: text("title").notNull(),
+  wordCount: integer("word_count").notNull().default(0),
+  versionNumber: integer("version_number").notNull(),
+  changeDescription: text("change_description"), // Auto-saved, AI Enhancement, Manual Edit, etc.
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Writing Analytics table
 export const writingAnalytics = pgTable("writing_analytics", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -114,6 +126,11 @@ export const insertAchievementSchema = createInsertSchema(achievements).omit({
   unlockedAt: true,
 });
 
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertWritingAnalyticsSchema = createInsertSchema(writingAnalytics).omit({
   id: true,
   date: true,
@@ -122,6 +139,9 @@ export const insertWritingAnalyticsSchema = createInsertSchema(writingAnalytics)
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+
+export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
 
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Document = typeof documents.$inferSelect;

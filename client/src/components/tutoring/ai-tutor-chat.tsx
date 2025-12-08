@@ -1,37 +1,64 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+
+interface ChatMessage {
+  type: "ai" | "user";
+  content: string;
+}
 
 export default function AiTutorChat() {
   const [message, setMessage] = useState("");
-  const [chatHistory, setChatHistory] = useState([
+  const [isLoading, setIsLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       type: "ai",
-      content: "I noticed you're working on APA citations. Would you like me to review your research paper draft and help identify where citations are needed?"
-    },
-    {
-      type: "user",
-      content: "Yes, that would be helpful. I'm not sure if I've cited everything correctly."
-    },
-    {
-      type: "ai",
-      content: "I've analyzed your document and found 3 places where citations could be improved. Would you like me to show you each one with suggestions?"
+      content: "Hello! I'm your AI Writing Tutor, integrated with the Purdue OWL curriculum. I can help you with academic writing, citations (APA, MLA, Chicago), grammar, research skills, and the writing process. What would you like to learn about today?"
     }
   ]);
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
-    
-    setChatHistory(prev => [...prev, { type: "user", content: message }]);
-    setMessage("");
-    
-    // Simulate AI response
-    setTimeout(() => {
+  const tutorMutation = useMutation({
+    mutationFn: async (userMessage: string) => {
+      // Build context from recent chat history
+      const recentContext = chatHistory.slice(-4).map(m =>
+        `${m.type === 'user' ? 'Student' : 'Tutor'}: ${m.content}`
+      ).join('\n');
+
+      const response = await apiRequest("POST", "/api/ai/tutor/chat", {
+        message: userMessage,
+        context: recentContext,
+        lessonContext: "Purdue OWL Writing Curriculum - Research & Citation, Academic Writing, Grammar & Style, Writing Process"
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
       setChatHistory(prev => [...prev, {
         type: "ai",
-        content: "Great question! Let me help you with that..."
+        content: data.response
       }]);
-    }, 1000);
+      setIsLoading(false);
+    },
+    onError: (error) => {
+      console.error('Tutor chat error:', error);
+      setChatHistory(prev => [...prev, {
+        type: "ai",
+        content: "I'm sorry, I encountered an issue. Please try asking your question again."
+      }]);
+      setIsLoading(false);
+    }
+  });
+
+  const handleSendMessage = () => {
+    if (!message.trim() || isLoading) return;
+
+    const userMessage = message.trim();
+    setChatHistory(prev => [...prev, { type: "user", content: userMessage }]);
+    setMessage("");
+    setIsLoading(true);
+
+    tutorMutation.mutate(userMessage);
   };
 
   return (
@@ -48,54 +75,71 @@ export default function AiTutorChat() {
       <div className="p-6">
         <div className="space-y-4">
           {/* Chat-like interface */}
-          <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
-            {chatHistory.map((message, index) => (
-              <div key={index} className={`flex space-x-3 ${message.type === "user" ? "justify-end" : ""}`}>
-                {message.type === "ai" && (
+          <div className="space-y-3 max-h-80 overflow-y-auto custom-scrollbar">
+            {chatHistory.map((msg, index) => (
+              <div key={index} className={`flex space-x-3 ${msg.type === "user" ? "justify-end" : ""}`}>
+                {msg.type === "ai" && (
                   <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
                     <i className="fas fa-robot text-white text-sm"></i>
                   </div>
                 )}
-                <div className={`rounded-lg p-3 max-w-xs ${
-                  message.type === "ai" 
-                    ? "bg-secondary/10 flex-1" 
+                <div className={`rounded-lg p-3 max-w-sm ${
+                  msg.type === "ai"
+                    ? "bg-secondary/10 flex-1"
                     : "bg-primary/10"
                 }`}>
-                  <p className="text-sm text-neutral-700">{message.content}</p>
-                  {message.type === "ai" && index === chatHistory.length - 1 && (
-                    <div className="flex items-center space-x-2 mt-2">
-                      <Button size="sm" className="bg-secondary text-white hover:bg-secondary/90 text-xs">
-                        Yes, show me
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-secondary text-xs hover:underline">
-                        Explain how you found them
-                      </Button>
-                    </div>
-                  )}
+                  <p className="text-sm text-neutral-700 whitespace-pre-wrap">{msg.content}</p>
                 </div>
-                {message.type === "user" && (
+                {msg.type === "user" && (
                   <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
                     <i className="fas fa-user text-white text-sm"></i>
                   </div>
                 )}
               </div>
             ))}
+            {isLoading && (
+              <div className="flex space-x-3">
+                <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center flex-shrink-0">
+                  <i className="fas fa-robot text-white text-sm"></i>
+                </div>
+                <div className="bg-secondary/10 rounded-lg p-3 flex-1">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-secondary rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-secondary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-secondary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    <span className="text-sm text-neutral-500 ml-2">Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="border-t border-neutral-200 pt-4">
             <div className="flex space-x-2">
               <Input
                 type="text"
-                placeholder="Ask your AI tutor a question..."
+                placeholder="Ask about citations, grammar, writing process..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                disabled={isLoading}
                 className="text-sm"
               />
-              <Button onClick={handleSendMessage} className="bg-primary text-white hover:bg-primary/90">
-                <i className="fas fa-paper-plane text-sm"></i>
+              <Button
+                onClick={handleSendMessage}
+                disabled={isLoading || !message.trim()}
+                className="bg-primary text-white hover:bg-primary/90"
+              >
+                {isLoading ? (
+                  <i className="fas fa-spinner fa-spin text-sm"></i>
+                ) : (
+                  <i className="fas fa-paper-plane text-sm"></i>
+                )}
               </Button>
             </div>
+            <p className="text-xs text-neutral-400 mt-2">
+              Powered by Gemini AI with Purdue OWL curriculum
+            </p>
           </div>
         </div>
       </div>

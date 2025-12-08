@@ -3,6 +3,8 @@ import {
   type InsertUser, 
   type Document, 
   type InsertDocument,
+  type DocumentVersion,
+  type InsertDocumentVersion,
   type AiInteraction,
   type InsertAiInteraction,
   type LearningProgress,
@@ -13,6 +15,7 @@ import {
   type InsertWritingAnalytics,
   users,
   documents,
+  documentVersions,
   aiInteractions,
   learningProgress,
   achievements,
@@ -36,6 +39,11 @@ export interface IStorage {
   createDocument(document: InsertDocument): Promise<Document>;
   updateDocument(id: string, updates: Partial<Document>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
+
+  // Document Version operations
+  getDocumentVersions(documentId: string, limit?: number): Promise<DocumentVersion[]>;
+  createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
+  restoreDocumentVersion(versionId: string): Promise<Document | undefined>;
 
   // AI Interaction operations
   createAiInteraction(interaction: InsertAiInteraction): Promise<AiInteraction>;
@@ -231,6 +239,30 @@ export class MemStorage implements IStorage {
     return this.documents.delete(id);
   }
 
+  // Document Version operations (stub implementations for MemStorage)
+  async getDocumentVersions(documentId: string, limit = 50): Promise<DocumentVersion[]> {
+    return []; // Not implemented for in-memory storage
+  }
+
+  async createDocumentVersion(insertVersion: InsertDocumentVersion): Promise<DocumentVersion> {
+    const id = randomUUID();
+    const version: DocumentVersion = {
+      id,
+      documentId: insertVersion.documentId,
+      content: insertVersion.content,
+      title: insertVersion.title,
+      wordCount: insertVersion.wordCount,
+      versionNumber: insertVersion.versionNumber,
+      changeDescription: insertVersion.changeDescription || null,
+      createdAt: new Date(),
+    };
+    return version; // Not persisted in memory
+  }
+
+  async restoreDocumentVersion(versionId: string): Promise<Document | undefined> {
+    return undefined; // Not implemented for in-memory storage
+  }
+
   // AI Interaction operations
   async createAiInteraction(insertInteraction: InsertAiInteraction): Promise<AiInteraction> {
     const id = randomUUID();
@@ -419,6 +451,48 @@ export class DatabaseStorage implements IStorage {
   async deleteDocument(id: string): Promise<boolean> {
     const result = await db.delete(documents).where(eq(documents.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // Document Version operations
+  async getDocumentVersions(documentId: string, limit = 50): Promise<DocumentVersion[]> {
+    return await db
+      .select()
+      .from(documentVersions)
+      .where(eq(documentVersions.documentId, documentId))
+      .orderBy(desc(documentVersions.createdAt))
+      .limit(limit);
+  }
+
+  async createDocumentVersion(insertVersion: InsertDocumentVersion): Promise<DocumentVersion> {
+    const [version] = await db
+      .insert(documentVersions)
+      .values(insertVersion)
+      .returning();
+    return version;
+  }
+
+  async restoreDocumentVersion(versionId: string): Promise<Document | undefined> {
+    // Get the version
+    const [version] = await db
+      .select()
+      .from(documentVersions)
+      .where(eq(documentVersions.id, versionId));
+    
+    if (!version) return undefined;
+
+    // Update the document with the version's content
+    const [document] = await db
+      .update(documents)
+      .set({
+        content: version.content,
+        title: version.title,
+        wordCount: version.wordCount,
+        lastModified: new Date()
+      })
+      .where(eq(documents.id, version.documentId))
+      .returning();
+    
+    return document || undefined;
   }
 
   // AI Interaction operations

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provider Check - LocalStorage Inspector</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 40px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #000;
+            padding: 30px;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+        }
+        h1 {
+            color: #00ff00;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .status {
+            background: #002200;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #00ff00;
+        }
+        .error {
+            background: #220000;
+            border-left-color: #ff0000;
+            color: #ff6666;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 5px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        .value {
+            color: #ffff00;
+            font-weight: bold;
+        }
+        .log {
+            background: #111;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .instructions {
+            background: #001a33;
+            padding: 15px;
+            border-left: 4px solid #0066ff;
+            margin: 20px 0;
+            color: #66ccff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Provider Checker - LocalStorage Inspector</h1>
+        
+        <div class="instructions">
+            <strong>Instructions:</strong><br>
+            1. Open your TacWrite3 app in another tab<br>
+            2. Keep this tab open<br>
+            3. Click the buttons below to check localStorage<br>
+            4. Switch providers in the app<br>
+            5. Click "Refresh Check" to see the new value
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <button onclick="checkProvider()">🔄 Refresh Check</button>
+            <button onclick="setGemini()">Set to Gemini</button>
+            <button onclick="setGroq()">Set to Groq</button>
+            <button onclick="clearProvider()">Clear Value</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function checkProvider() {
+            const resultsDiv = document.getElementById('results');
+            const provider = localStorage.getItem('ai-provider-preference');
+            const allKeys = Object.keys(localStorage);
+            
+            let html = '<div class="status">';
+            html += '<h3>📊 Current Status</h3>';
+            html += `<p><strong>Current Provider:</strong> <span class="value">${provider || '(not set)'}</span></p>`;
+            html += `<p><strong>Timestamp:</strong> ${new Date().toLocaleTimeString()}</p>`;
+            html += '</div>';
+
+            html += '<div class="log">';
+            html += '<h3>🗃️ All LocalStorage Keys:</h3>';
+            if (allKeys.length === 0) {
+                html += '<p class="error">No localStorage keys found!</p>';
+            } else {
+                allKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    const isProvider = key === 'ai-provider-preference';
+                    html += `<p>${isProvider ? '👉 ' : ''}<strong>${key}:</strong> ${value}</p>`;
+                });
+            }
+            html += '</div>';
+
+            if (provider === 'groq') {
+                html += '<div class="status">';
+                html += '✅ <strong>GROQ is selected!</strong> The app should be using Groq AI.';
+                html += '</div>';
+            } else if (provider === 'gemini') {
+                html += '<div class="status error">';
+                html += '⚠️ <strong>GEMINI is selected.</strong> This is why all requests use Gemini.';
+                html += '</div>';
+            } else {
+                html += '<div class="status error">';
+                html += '❌ <strong>No provider set.</strong> App will default to Gemini.';
+                html += '</div>';
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function setGemini() {
+            localStorage.setItem('ai-provider-preference', 'gemini');
+            console.log('Set provider to: gemini');
+            checkProvider();
+        }
+
+        function setGroq() {
+            localStorage.setItem('ai-provider-preference', 'groq');
+            console.log('Set provider to: groq');
+            checkProvider();
+        }
+
+        function clearProvider() {
+            localStorage.removeItem('ai-provider-preference');
+            console.log('Cleared provider preference');
+            checkProvider();
+        }
+
+        // Auto-check on load
+        checkProvider();
+
+        // Auto-refresh every 2 seconds
+        setInterval(checkProvider, 2000);
+    </script>
+</body>
+</html>

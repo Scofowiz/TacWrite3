@@ -1,0 +1,10 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                            ⚡ YOU ARE HERE                            ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT ▶ attached_assets                                               ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT: /Users/scottfoster/GitHub/TacWrite3/                           ┃
+┃ HERE: /Users/scottfoster/GitHub/TacWrite3/attached_assets/           ┃
+┃ ROLE: Attached_assets directory                                      ┃
+┃ DEPTH: 1 level deep                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

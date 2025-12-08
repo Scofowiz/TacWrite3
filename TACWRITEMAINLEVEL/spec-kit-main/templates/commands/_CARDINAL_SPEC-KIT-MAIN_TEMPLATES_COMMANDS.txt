@@ -1,0 +1,10 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                            ⚡ YOU ARE HERE                            ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT ▶ spec-kit-main ▶ templates ▶ commands                          ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/         ┃
+┃ HERE: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/spec-kit-main/templates/commands/ ┃
+┃ ROLE: Commands directory                                             ┃
+┃ DEPTH: 3 levels deep                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

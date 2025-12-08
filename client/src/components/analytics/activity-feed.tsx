@@ -26,11 +26,18 @@ export default function ActivityFeed({ interactions, documents }: ActivityFeedPr
     }
   };
 
-  const formatTimeAgo = (date: Date) => {
-    const diffMs = Date.now() - new Date(date).getTime();
+  const formatTimeAgo = (date: Date | string | undefined) => {
+    if (!date) return "Unknown";
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (isNaN(dateObj.getTime())) return "Unknown";
+
+    const diffMs = Date.now() - dateObj.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} min${diffMins !== 1 ? 's' : ''} ago`;
     if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
     return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
   };

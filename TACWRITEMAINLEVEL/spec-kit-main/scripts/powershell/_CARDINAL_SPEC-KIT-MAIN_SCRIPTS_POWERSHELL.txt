@@ -1,0 +1,10 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                            ⚡ YOU ARE HERE                            ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT ▶ spec-kit-main ▶ scripts ▶ powershell                          ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/         ┃
+┃ HERE: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/spec-kit-main/scripts/powershell/ ┃
+┃ ROLE: Powershell directory                                           ┃
+┃ DEPTH: 3 levels deep                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

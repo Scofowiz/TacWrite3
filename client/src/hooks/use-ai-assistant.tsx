@@ -108,13 +108,20 @@ export function useAiAssistant(options: UseAiAssistantOptions = {}): UseAiAssist
   // Text enhancement mutation - using direct API calls
   const enhanceTextMutation = useMutation({
     mutationFn: async (request: EnhancementRequest) => {
-      const response = await apiRequest("POST", "/api/ai/enhance", request);
+      // Get the current provider preference from localStorage at mutation time
+      const provider = localStorage.getItem('ai-provider-preference') || 'gemini';
+      console.log('[Client] Reading provider from localStorage:', provider);
+      console.log('[Client] Full request being sent:', { ...request, provider });
+      const response = await apiRequest("POST", "/api/ai/enhance", {
+        ...request,
+        provider
+      });
       return response.json();
     },
     onSuccess: (result) => {
       toast({
         title: "Text Enhanced Successfully",
-        description: `Quality improved to ${result.qualityScore}/10`,
+        description: `Quality improved to ${result.qualityScore}/10 (using ${result.provider || 'default AI'})`,
       });
       
       // Invalidate user data to update usage count

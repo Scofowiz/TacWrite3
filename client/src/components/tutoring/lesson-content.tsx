@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface LessonContentProps {
   module: {
@@ -15,11 +17,54 @@ interface LessonContentProps {
   activeModule: string;
 }
 
+interface AnswerResult {
+  isCorrect: boolean;
+  score: number;
+  feedback: string;
+  corrections: string[];
+  praise: string;
+}
+
 export default function LessonContent({ module, activeModule }: LessonContentProps) {
   const [citationAnswer, setCitationAnswer] = useState("");
   const [showHint, setShowHint] = useState(false);
+  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
 
   const currentLesson = module.lessons[0]; // For demo, show first lesson
+
+  const checkAnswerMutation = useMutation({
+    mutationFn: async (answer: string) => {
+      const response = await apiRequest("POST", "/api/ai/tutor/check-answer", {
+        userAnswer: answer,
+        expectedFormat: "APA",
+        exerciseDescription: "Create an APA citation for a journal article",
+        correctAnswer: "Smith, J. (2023). Climate change and agriculture. Environmental Science Review, 45, 123-145."
+      });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setAnswerResult(data);
+      setIsChecking(false);
+    },
+    onError: () => {
+      setAnswerResult({
+        isCorrect: false,
+        score: 0,
+        feedback: "Could not check your answer. Please try again.",
+        corrections: [],
+        praise: ""
+      });
+      setIsChecking(false);
+    }
+  });
+
+  const handleCheckAnswer = () => {
+    if (!citationAnswer.trim()) return;
+    setIsChecking(true);
+    setAnswerResult(null);
+    checkAnswerMutation.mutate(citationAnswer);
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
@@ -78,9 +123,51 @@ export default function LessonContent({ module, activeModule }: LessonContentPro
             </div>
           )}
           
+          {answerResult && (
+            <div className={`rounded-lg p-4 mb-3 ${
+              answerResult.isCorrect
+                ? "bg-green-50 border border-green-200"
+                : "bg-amber-50 border border-amber-200"
+            }`}>
+              <div className="flex items-center space-x-2 mb-2">
+                <i className={`fas ${answerResult.isCorrect ? "fa-check-circle text-green-600" : "fa-info-circle text-amber-600"}`}></i>
+                <span className={`font-medium ${answerResult.isCorrect ? "text-green-800" : "text-amber-800"}`}>
+                  Score: {answerResult.score}%
+                </span>
+              </div>
+              <p className="text-sm text-neutral-700 mb-2">{answerResult.feedback}</p>
+              {answerResult.praise && (
+                <p className="text-sm text-green-700 mb-2">
+                  <i className="fas fa-star mr-1"></i> {answerResult.praise}
+                </p>
+              )}
+              {answerResult.corrections.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-amber-800 mb-1">Suggestions:</p>
+                  <ul className="text-xs text-amber-700 list-disc list-inside">
+                    {answerResult.corrections.map((correction, idx) => (
+                      <li key={idx}>{correction}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center space-x-3">
-            <Button className="bg-accent text-white hover:bg-accent/90">
-              Check Answer
+            <Button
+              onClick={handleCheckAnswer}
+              disabled={isChecking || !citationAnswer.trim()}
+              className="bg-accent text-white hover:bg-accent/90"
+            >
+              {isChecking ? (
+                <>
+                  <i className="fas fa-spinner fa-spin mr-2"></i>
+                  Checking...
+                </>
+              ) : (
+                "Check Answer"
+              )}
             </Button>
             <Button
               variant="ghost"

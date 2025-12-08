@@ -1,0 +1,10 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                            ⚡ YOU ARE HERE                            ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT ▶ spec-kit-main ▶ media                                         ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/         ┃
+┃ HERE: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/spec-kit-main/media/ ┃
+┃ ROLE: Media directory                                                ┃
+┃ DEPTH: 2 levels deep                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

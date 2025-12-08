@@ -1,0 +1,10 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                            ⚡ YOU ARE HERE                            ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT ▶ client ▶ src ▶ components                                     ┃
+┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+┃ ROOT: /Users/scottfoster/GitHub/TacWrite3/                           ┃
+┃ HERE: /Users/scottfoster/GitHub/TacWrite3/client/src/components/     ┃
+┃ ROLE: UI components                                                  ┃
+┃ DEPTH: 3 levels deep                                                   ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

@@ -78,3 +78,49 @@ export type TabType = "editor" | "tutoring" | "analytics";
 export type EnhancementType = "description" | "dialogue" | "style" | "clarity" | "emotion" | "pacing" | "atmosphere" | "character" | "action" | "tension" | "voice" | "general";
 
 export type CourseModule = "research-citation" | "academic-writing" | "grammar-style" | "writing-process";
+
+// AI Enhancement Types
+export interface EnhancementRequest {
+  text: string;
+  enhancementType: EnhancementType;
+  documentId?: string;
+  agentType?: string;
+  cursorPosition?: number;
+  isFromCursor?: boolean;
+  contextAfter?: string;
+  stream?: boolean;
+  provider?: string;
+}
+
+export interface EnhancementResult {
+  enhancedText: string;
+  processNotes?: string;
+  originalText: string;
+  enhancementType: EnhancementType;
+  improvements: string[];
+  qualityScore: string;
+  improvementMetric: string;
+  agentType: string;
+  cursorPosition: number;
+  isFromCursor: boolean;
+  hasBidirectionalContext: boolean;
+  provider?: string;
+}
+
+export interface CharacterProfileRequest {
+  prompt: string;
+  genre?: string;
+  context?: string;
+}
+
+export interface CharacterProfile {
+  id: string;
+  name: string;
+  description: string;
+  personality: string[];
+  background: string;
+  goals: string[];
+  conflicts: string[];
+  relationships: string[];
+  createdAt: Date;
+}

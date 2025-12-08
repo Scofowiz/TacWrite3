@@ -13,6 +13,7 @@ export default function EditorView() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [aiAssistantVisible, setAiAssistantVisible] = useState(true);
+  const [narrativeMode, setNarrativeMode] = useState("continue");
   const [documentContent, setDocumentContent] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
   const [undoHistory, setUndoHistory] = useState<string[]>([]);
@@ -100,8 +101,12 @@ export default function EditorView() {
 
   const handleContentChange = (content: string, skipHistory = false) => {
     // Add to undo history if this is a user action (not undo/redo)
-    if (!skipHistory && documentContent !== content && documentContent.length > 0) {
-      setUndoHistory(prev => [...prev.slice(-49), documentContent]); // Keep last 50 states
+    // Also check that content has actually changed
+    if (!skipHistory && documentContent !== content) {
+      // Only add to history if we have existing content (don't save empty initial states)
+      if (documentContent.length > 0) {
+        setUndoHistory(prev => [...prev.slice(-49), documentContent]); // Keep last 50 states
+      }
       setRedoHistory([]); // Clear redo history on new change
     }
     
@@ -116,6 +121,7 @@ export default function EditorView() {
     // Auto-save after 2 seconds of no typing
     autoSaveTimeout.current = setTimeout(() => {
       updateDocumentMutation.mutate({ content, wordCount });
+      setLastSavedContent(content);
     }, 2000);
   };
 
@@ -260,6 +266,7 @@ export default function EditorView() {
                 onClose={() => setAiAssistantVisible(false)}
                 onPremiumFeature={handlePremiumFeature}
                 onTextUpdate={handleContentChange}
+                narrativeMode={narrativeMode}
               />
             )}
           </div>
@@ -267,6 +274,7 @@ export default function EditorView() {
           {/* Instruction Panel */}
           <InstructionPanel
             document={selectedDocument}
+            onNarrativeModeChange={setNarrativeMode}
           />
         </div>
       </div>

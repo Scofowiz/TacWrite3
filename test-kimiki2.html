@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Kimiki2 Integration</title>
+    <script type="module">
+        // Import the createAIClient function using ES modules
+        import { createAIClient } from './client/src/lib/ai-client.ts';
+        
+        async function testKimiki2() {
+            console.log('Testing Kimiki2 integration...');
+            
+            try {
+                // Test Kimiki2 provider
+                const kimiki2Client = createAIClient('kimiki2');
+                console.log('✅ Kimiki2 client created successfully');
+                
+                // Test with a simple prompt
+                const prompt = "Write a brief sentence about testing AI integrations.";
+                console.log('📝 Testing prompt:', prompt);
+                
+                const response = await kimiki2Client.generate(prompt, {
+                    maxTokens: 50,
+                    temperature: 0.7
+                });
+                
+                console.log('✅ Kimiki2 response:', response);
+                
+                // Update the page with results
+                document.getElementById('status').innerHTML = `
+                    <h2>Kimiki2 Integration Test Results</h2>
+                    <div class="success">✅ Kimiki2 client created successfully</div>
+                    <div class="success">✅ Generated response: "${response.content}"</div>
+                    <div class="info">📊 Token usage: ${JSON.stringify(response.usage)}</div>
+                `;
+                
+            } catch (error) {
+                console.error('❌ Kimiki2 test failed:', error);
+                document.getElementById('status').innerHTML = `
+                    <h2>Kimiki2 Integration Test Failed</h2>
+                    <div class="error">❌ Error: ${error.message}</div>
+                    <div class="info">Check console for full details</div>
+                `;
+            }
+        }
+        
+        // Run test when page loads
+        window.addEventListener('load', testKimiki2);
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Kimiki2 AI Integration Test</h1>
+    <p>This page tests the Kimiki2 AI integration to ensure it's working correctly.</p>
+    <div id="status">
+        <div class="info">🔄 Testing Kimiki2 integration...</div>
+    </div>
+</body>
+</html>

@@ -12,13 +12,15 @@ interface AiAssistantPanelProps {
   onClose: () => void;
   onPremiumFeature: () => void;
   onTextUpdate?: (text: string) => void;
+  narrativeMode?: string;
 }
 
 export default function AiAssistantPanel({
   document,
   onClose,
   onPremiumFeature,
-  onTextUpdate
+  onTextUpdate,
+  narrativeMode = "continue"
 }: AiAssistantPanelProps) {
   const [selectedText, setSelectedText] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -28,6 +30,9 @@ export default function AiAssistantPanel({
   const [lastEnhancementData, setLastEnhancementData] = useState<any>(null);
   const [currentSuggestion, setCurrentSuggestion] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
+  const [processNotes, setProcessNotes] = useState<string | null>(null); // Separate meta-content
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamedText, setStreamedText] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -82,33 +87,55 @@ export default function AiAssistantPanel({
   });
 
   const enhanceTextMutation = useMutation({
-    mutationFn: async (data: { text: string; enhancementType: string; documentId: string }) => {
-      // Get current cursor position from the textarea
+    mutationFn: async (data: { text: string; enhancementType: string; documentId: string; useStreaming?: boolean }) => {
+      // Get current cursor position and context from the textarea
       let cursorPosition = 0;
+      let contextAfter = "";
       let isFromCursor = data.enhancementType === 'continue' || data.enhancementType === 'auto-complete';
-      
-      // Find the textarea element to get accurate cursor position
+
+      // Find the textarea element to get accurate cursor position and bidirectional context
       const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
       if (textarea && isFromCursor) {
         cursorPosition = textarea.selectionStart;
+        // Get text AFTER cursor for bidirectional awareness
+        contextAfter = textarea.value.substring(cursorPosition, cursorPosition + 400);
       }
 
+      // Use streaming for continue/auto-complete, regular for others
+      if (data.useStreaming && isFromCursor) {
+        return { useStreaming: true, cursorPosition, contextAfter, isFromCursor };
+      }
+
+      // Get current provider from localStorage
+      const provider = localStorage.getItem('ai-provider-preference') || 'gemini';
+      
       const response = await apiRequest("POST", "/api/ai/enhance", {
         text: data.text,
         enhancementType: data.enhancementType,
         documentId: data.documentId,
         cursorPosition,
-        isFromCursor
+        isFromCursor,
+        contextAfter, // Send text after cursor for bidirectional awareness
+        provider // Include provider selection
       });
       return response.json();
     },
     onSuccess: (data) => {
+      if (data.useStreaming) {
+        // Handle streaming separately
+        handleStreamingEnhancement(data);
+        return;
+      }
       setLastEnhancement(data.enhancedText);
       setLastEnhancementData(data);
+      // Store process notes separately - NOT for document insertion
+      if (data.processNotes) {
+        setProcessNotes(data.processNotes);
+      }
       setShowFeedback(true);
       toast({
         title: "Text Enhanced",
-        description: `Quality score: ${data.qualityScore}/10`,
+        description: `Quality score: ${data.qualityScore}/10${data.hasBidirectionalContext ? ' (cursor-aware)' : ''}`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user/current"] });
     },
@@ -125,14 +152,99 @@ export default function AiAssistantPanel({
     },
   });
 
-  const handleEnhancement = (type: string) => {
-    // Use selected text or document content
-    const contextText = selectedText || document.content || "";
+  // Streaming enhancement handler
+  const handleStreamingEnhancement = async (config: { cursorPosition: number; contextAfter: string; isFromCursor: boolean }) => {
+    setIsStreaming(true);
+    setStreamedText("");
+
+    try {
+      const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
+      const text = textarea?.value || document.content || "";
+
+      // Get current provider from localStorage
+      const provider = localStorage.getItem('ai-provider-preference') || 'gemini';
+      
+      const response = await fetch('/api/ai/enhance/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          enhancementType: 'continue',
+          documentId: document.id,
+          cursorPosition: config.cursorPosition,
+          isFromCursor: config.isFromCursor,
+          contextAfter: config.contextAfter,
+          provider // Include provider selection
+        }),
+        credentials: 'include'
+      });
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line.substring(6));
+              if (data.chunk) {
+                setStreamedText(prev => prev + data.chunk);
+              }
+              if (data.done) {
+                setLastEnhancement(data.fullText);
+                setLastEnhancementData({
+                  ...data,
+                  enhancedText: data.fullText,
+                  cursorPosition: config.cursorPosition,
+                  isFromCursor: config.isFromCursor
+                });
+                setShowFeedback(true);
+              }
+            } catch (e) {
+              // Ignore parse errors for partial data
+            }
+          }
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Streaming Failed",
+        description: "Could not stream response",
+        variant: "destructive"
+      });
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  const handleEnhancement = (type: string, useStreaming = false) => {
+    // Priority: 1) Selected text, 2) Last 1000 chars, 3) Document content
+    let contextText = selectedText;
     
-    enhanceTextMutation.mutate({ 
-      text: contextText, 
+    if (!contextText || contextText.trim().length === 0) {
+      const fullContent = document.content || "";
+      // Default to last 1000 characters if no selection
+      if (fullContent.length > 1000) {
+        contextText = fullContent.slice(-1000);
+      } else {
+        contextText = fullContent;
+      }
+    }
+    
+    // Clear previous process notes
+    setProcessNotes(null);
+
+    enhanceTextMutation.mutate({
+      text: contextText,
       enhancementType: type,
-      documentId: document.id
+      documentId: document.id,
+      useStreaming
     });
   };
 
@@ -156,12 +268,12 @@ export default function AiAssistantPanel({
 
   const applyEnhancement = () => {
     if (lastEnhancement && onTextUpdate && lastEnhancementData) {
+      // Get the textarea to refresh current content
+      const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
+      const currentContent = textarea?.value || document?.content || '';
+      
       // Check if this was a cursor-aware continuation
       if (lastEnhancementData.isFromCursor && lastEnhancementData.cursorPosition !== undefined) {
-        // Get the current document content and cursor position
-        const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
-        const currentContent = document?.content || '';
-        
         // Use the stored cursor position from when the enhancement was requested
         const cursorPos = lastEnhancementData.cursorPosition;
         
@@ -180,9 +292,24 @@ export default function AiAssistantPanel({
             textarea.focus();
           }, 10);
         }
+      } else if (selectedText && currentContent.includes(selectedText)) {
+        // Replace only the selected text, preserving the rest
+        const newContent = currentContent.replace(selectedText, lastEnhancement);
+        onTextUpdate(newContent);
       } else {
-        // For non-cursor enhancements, replace the selected text or entire content
-        onTextUpdate(lastEnhancement);
+        // Fallback: append or replace based on enhancement type
+        // For analysis/suggestions, don't replace the entire content
+        if (lastEnhancementData.enhancementType?.includes('analyze') || 
+            lastEnhancementData.enhancementType?.includes('suggestion')) {
+          // Don't replace content for analytical enhancements
+          toast({
+            title: "Analysis Complete",
+            description: "Review the suggestions without modifying your content.",
+          });
+        } else {
+          // For other enhancements, use the enhanced text
+          onTextUpdate(lastEnhancement);
+        }
       }
       
       setLastEnhancement(null);
@@ -200,6 +327,9 @@ export default function AiAssistantPanel({
     setCurrentSuggestion("");
     setLastEnhancement(null);
     setShowFeedback(false);
+    setProcessNotes(null);
+    setStreamedText("");
+    setIsStreaming(false);
     toast({
       title: "Suggestion Dismissed",
       description: "The suggestion has been dismissed.",
@@ -236,6 +366,56 @@ export default function AiAssistantPanel({
       </div>
       
       <div className="p-4 space-y-4 overflow-y-auto max-h-96">
+        {/* Context Indicator */}
+        {(() => {
+          const hasSelection = selectedText && selectedText.trim().length > 0;
+          const contextLength = hasSelection ? selectedText.length : Math.min(document.content?.length || 0, 1000);
+          const contextType = hasSelection ? "Selected text" : "Last 1000 chars";
+          
+          if (contextLength > 0) {
+            return (
+              <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">
+                    <i className={`fas ${hasSelection ? 'fa-i-cursor' : 'fa-file-alt'} mr-1`}></i>
+                    {contextType}
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {contextLength} chars
+                  </Badge>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        })()}
+        
+        {/* Streaming Preview */}
+        {isStreaming && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-center space-x-2 mb-2">
+              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-sm font-medium text-blue-800">Streaming...</span>
+            </div>
+            <p className="text-sm text-blue-700 break-words max-h-32 overflow-y-auto">
+              {streamedText || "Waiting for response..."}
+            </p>
+          </div>
+        )}
+
+        {/* Process Notes - Shown separately from document content */}
+        {processNotes && !isStreaming && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <div className="flex items-center space-x-2 mb-2">
+              <i className="fas fa-brain text-amber-600 text-xs"></i>
+              <span className="text-xs font-medium text-amber-800">AI Analysis (not in document)</span>
+            </div>
+            <p className="text-xs text-amber-700 break-words max-h-24 overflow-y-auto">
+              {processNotes}
+            </p>
+          </div>
+        )}
+
         {/* Current Suggestion */}
         <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
           <div className="flex items-start space-x-2">
@@ -294,10 +474,10 @@ export default function AiAssistantPanel({
                   <Button
                     size="sm"
                     onClick={() => handleEnhancement("clarity")}
-                    disabled={enhanceTextMutation.isPending}
+                    disabled={enhanceTextMutation.isPending || isStreaming}
                     className="text-xs"
                   >
-                    {enhanceTextMutation.isPending ? "Enhancing..." : "Enhance Text"}
+                    {enhanceTextMutation.isPending || isStreaming ? "Enhancing..." : "Enhance Text"}
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" className="text-xs" onClick={dismissSuggestion}>
@@ -308,53 +488,197 @@ export default function AiAssistantPanel({
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Narrative Mode Actions */}
         <div>
-          <h4 className="text-sm font-medium text-neutral-700 mb-2">Quick Actions</h4>
+          <h4 className="text-sm font-medium text-neutral-700 mb-2 flex items-center gap-2">
+            <i className="fas fa-brain text-accent"></i>
+            Narrative Mode: <span className="text-accent capitalize">{narrativeMode}</span>
+          </h4>
           <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEnhancement("continue")}
-              disabled={enhanceTextMutation.isPending}
-              className="p-2 h-auto flex flex-col items-center text-xs"
-            >
-              <i className="fas fa-plus-circle text-accent mb-1"></i>
-              <span>Continue Writing</span>
-            </Button>
+            {narrativeMode === "continue" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("continue", true)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <span className="mb-1">→</span>
+                  <span>Continue Story</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("auto-complete", true)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-pen-fancy text-secondary mb-1"></i>
+                  <span>Auto-Complete</span>
+                </Button>
+              </>
+            )}
             
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEnhancement("polish")}
-              disabled={enhanceTextMutation.isPending}
-              className="p-2 h-auto flex flex-col items-center text-xs"
-            >
-              <i className="fas fa-edit text-primary mb-1"></i>
-              <span>Polish Text</span>
-            </Button>
+            {narrativeMode === "branch" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("branch-explore", true)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <span className="mb-1">↳</span>
+                  <span>Explore Path</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("alternate-ending", true)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-code-branch text-purple-500 mb-1"></i>
+                  <span>Alt. Ending</span>
+                </Button>
+              </>
+            )}
             
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEnhancement("auto-complete")}
-              disabled={enhanceTextMutation.isPending}
-              className="p-2 h-auto flex flex-col items-center text-xs"
-            >
-              <i className="fas fa-magic text-secondary mb-1"></i>
-              <span>Auto-Complete</span>
-            </Button>
+            {narrativeMode === "deepen" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("add-depth", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <span className="mb-1">⤨</span>
+                  <span>Add Depth</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("internal-monologue", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-brain text-indigo-500 mb-1"></i>
+                  <span>Inner Thoughts</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("sensory-details", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-eye text-teal-500 mb-1"></i>
+                  <span>Sensory Details</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("world-building", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-globe text-green-500 mb-1"></i>
+                  <span>World-Building</span>
+                </Button>
+              </>
+            )}
             
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEnhancement("market-insights")}
-              disabled={enhanceTextMutation.isPending}
-              className="p-2 h-auto flex flex-col items-center text-xs"
-            >
-              <i className="fas fa-chart-line text-orange-500 mb-1"></i>
-              <span>Market Insights</span>
-            </Button>
+            {narrativeMode === "transform" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("transform-noir", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <span className="mb-1">⟲</span>
+                  <span>Noir Style</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("transform-stage-play", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-theater-masks text-pink-500 mb-1"></i>
+                  <span>Stage Play</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("transform-news", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-newspaper text-blue-500 mb-1"></i>
+                  <span>News Report</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("transform-poetry", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-feather text-purple-500 mb-1"></i>
+                  <span>Poetry</span>
+                </Button>
+              </>
+            )}
+            
+            {narrativeMode === "analyze" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("analyze-theme", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <span className="mb-1">🔍</span>
+                  <span>Theme Analysis</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("analyze-pacing", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-tachometer-alt text-orange-500 mb-1"></i>
+                  <span>Pacing</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("analyze-character", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-user text-blue-500 mb-1"></i>
+                  <span>Character</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEnhancement("analyze-style", false)}
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                  className="p-2 h-auto flex flex-col items-center text-xs"
+                >
+                  <i className="fas fa-palette text-pink-500 mb-1"></i>
+                  <span>Prose Style</span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 

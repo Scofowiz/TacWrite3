@@ -37,6 +37,7 @@ Key Guidelines:
 - Maintain consistency with any provided context or memory
 - Be creative while staying true to the user's vision
 - Generate content that flows naturally and is well-structured
+- Generate approximately 1000 words of content unless otherwise specified
 
 IMPORTANT: Respond with ONLY the creative text content. Do NOT wrap in JSON or use any formatting. Just write the story/content directly.`;
 
@@ -64,7 +65,7 @@ ${input.memory}
     const response = await client.generate(userPrompt, {
       systemPrompt,
       temperature: 0.8,
-      maxTokens: 1500,
+      maxTokens: 2000, // Increased to accommodate ~1000 words
     });
 
     const text = typeof response.content === 'string' 

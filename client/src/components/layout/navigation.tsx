@@ -17,6 +17,7 @@ export default function Navigation() {
     if (location.includes("/tutoring")) return "tutoring";
     if (location.includes("/analytics")) return "analytics";
     if (location.includes("/coach")) return "coach";
+    if (location.includes("/monitoring")) return "monitoring";
     return "editor";
   };
 
@@ -75,6 +76,16 @@ export default function Navigation() {
               >
                 <i className="fas fa-user-graduate mr-2"></i>
                 Coach
+              </Button>
+            </Link>
+            <Link href="/monitoring">
+              <Button
+                variant={getActiveTab() === "monitoring" ? "default" : "ghost"}
+                size="sm"
+                className="tab-button"
+              >
+                <i className="fas fa-chart-bar mr-2"></i>
+                Monitoring
               </Button>
             </Link>
           </div>

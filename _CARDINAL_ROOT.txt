@@ -1,0 +1,150 @@
+════════════════════════════════════════════════════════════
+CARDINAL RULES - READ BEFORE ANY OPERATION
+════════════════════════════════════════════════════════════
+
+ROOT: /Users/scottfoster/GitHub/TacWrite3/
+HERE: /Users/scottfoster/GitHub/TacWrite3/
+ROLE: Project root directory
+
+BEFORE GENERATING CODE:
+1. pwd && ls -la
+2. cat _CARDINAL_*.txt (signpost in current directory)
+3. State absolute path out loud
+4. Verify file doesn't already exist
+
+CONSTITUTIONAL RULES:
+- Absolute paths only, never use relative paths
+- ONE config location (verify before creating config)
+- NO new directories without explicit approval
+- Generate ONE file per operation, then STOP
+- All imports must use absolute paths
+
+VIOLATION = HALT IMMEDIATELY
+
+CUSTOM RULES:
+- ARCHITECTURE: Full-stack TypeScript app with React frontend and Express backend
+- CLIENT_COMPONENTS: React components in client/src/components/ organized by feature
+- COMPONENT_TYPES: ui/ (shadcn), editor/, tutoring/, modals/, analytics/, layout/
+- AI_FLOWS: AI agent workflows in flows/ - agent orchestration and memory systems
+- HOOKS: Custom React hooks in client/src/hooks/ (use-ai-assistant, use-premium)
+- LIB: Shared utilities and AI clients in client/src/lib/
+- PAGES: Top-level routes in client/src/pages/ (dashboard, editor, tutoring, coach)
+- SERVER: Express backend in server/ (routes, db, schema, storage)
+- DATABASE: Drizzle ORM schema in server/schema.ts, migrations in migrations/
+- TYPES: TypeScript types in client/src/types/ and shared/schema.ts
+- RULE_NO_DUPLICATE_COMPONENTS: Never create components outside client/src/components/
+- RULE_NO_DUPLICATE_FLOWS: All AI flows must go in flows/ directory
+- RULE_NO_DUPLICATE_HOOKS: Custom hooks only in client/src/hooks/
+
+DIRECTORY STRUCTURE:
+TacWrite3/
+├── attached_assets/
+│   ├── CLAUDE_1754740788190.md
+│   ├── README_1754740788192.md
+│   ├── agent_container_system_1754741081996.ts
+│   ├── agent_orchestrator_1754741081998.ts
+│   ├── autonomous-continuation.ts_1754741081999.old
+│   ├── autonomous-continuation_1754741081998.ts
+│   ├── character-profile-flow_1754741081999.ts
+│   ├── community_memory_pool_1754741081999.ts
+│   ├── contextual-enrichment.ts_1754741082000.old
+│   ├── contextual-enrichment_1754741081999.ts
+│   ├── refine-suggestion-flow_1754742940550.ts
+│   ├── repetition-checker-flow_1754742536522.ts
+│   ├── repetition-checker-flow_1754742940552.ts
+│   ├── simple-generate-text-block_1754742536523.ts
+│   ├── socratic-tutor-flow_1754742536523.ts
+│   ├── socratic-tutor-flow_1754742940552.ts
+│   ├── update-knowledge-graph-flow_1754742536523.ts
+│   ├── update-knowledge-graph-flow_1754742940553.ts
+│   ├── wfa_agent_flow_1754742536523.ts
+│   ├── wfa_agent_flow_1754742940553.ts
+│   ├── writing-tutor-flow.ts_1754742536523.old
+│   ├── writing-tutor-flow_1754742536523.ts
+│   └── writing-tutor-flow_1754742940554.ts
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── analytics/
+│   │   │   ├── editor/
+│   │   │   ├── layout/
+│   │   │   ├── modals/
+│   │   │   ├── tutoring/
+│   │   │   └── ui/
+│   │   ├── hooks/
+│   │   │   ├── use-ai-assistant.tsx
+│   │   │   ├── use-mobile.tsx
+│   │   │   ├── use-premium.tsx
+│   │   │   └── use-toast.ts
+│   │   ├── lib/
+│   │   │   ├── ai-agents.ts
+│   │   │   ├── ai-client.ts
+│   │   │   ├── ai-schemas.ts
+│   │   │   ├── community-memory-instance.ts
+│   │   │   ├── community-memory-pool.ts
+│   │   │   ├── enhanced-agent-flows.ts
+│   │   │   ├── premium-writing-coach.ts
+│   │   │   ├── queryClient.ts
+│   │   │   └── utils.ts
+│   │   ├── pages/
+│   │   │   ├── analytics.tsx
+│   │   │   ├── coach.tsx
+│   │   │   ├── dashboard.tsx
+│   │   │   ├── editor.tsx
+│   │   │   ├── not-found.tsx
+│   │   │   └── tutoring.tsx
+│   │   ├── types/
+│   │   │   └── index.ts
+│   │   ├── App.tsx
+│   │   ├── index.css
+│   │   └── main.tsx
+│   └── index.html
+├── flows/
+│   ├── agent_container_system.ts
+│   ├── agent_orchestrator.ts
+│   ├── anti-averaging-system.ts
+│   ├── autonomous-continuation.ts
+│   ├── character-profile-flow.ts
+│   ├── community_memory_pool.ts
+│   ├── contextual-enrichment.ts
+│   ├── continue-text.ts
+│   ├── doctor_agent_flow.ts
+│   ├── end-chapter.ts
+│   ├── generate-story-diagram.ts
+│   ├── generate-text-block.ts
+│   ├── large_context_agent_flow.ts
+│   ├── marie_kondo_agent_flow.ts
+│   ├── memory-compression-system.ts
+│   ├── plot-analysis-flow.ts
+│   ├── polish_agent_flow.ts
+│   ├── refine-suggestion-flow.ts
+│   ├── repetition-checker-flow.ts
+│   ├── simple-generate-text-block.ts
+│   ├── socratic-tutor-flow.ts
+│   ├── update-knowledge-graph-flow.ts
+│   ├── wfa_agent_flow.ts
+│   └── writing-tutor-flow.ts
+├── migrations/
+│   ├── meta/
+│   │   ├── 0000_snapshot.json
+│   │   └── _journal.json
+│   └── 0000_stale_wasp.sql
+├── server/
+│   ├── db.ts
+│   ├── index.ts
+│   ├── routes.ts
+│   ├── routes.ts.old
+│   ├── schema.ts
+│   ├── storage.ts
+│   └── vite.ts
+├── shared/
+│   └── schema.ts
+├── components.json
+├── drizzle.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.js
+├── replit.md
+├── tailwind.config.ts
+├── tsconfig.json
+└── vite.config.ts

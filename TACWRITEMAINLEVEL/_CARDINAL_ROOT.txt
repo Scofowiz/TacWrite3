@@ -1,0 +1,22 @@
+════════════════════════════════════════════════════════════
+CARDINAL RULES - READ BEFORE ANY OPERATION
+════════════════════════════════════════════════════════════
+
+ROOT: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/
+HERE: /Users/scottfoster/GitHub/TacWrite3/TACWRITEMAINLEVEL/
+ROLE: Project root directory
+
+BEFORE GENERATING CODE:
+1. pwd && ls -la
+2. cat _CARDINAL_*.txt (signpost in current directory)
+3. State absolute path out loud
+4. Verify file doesn't already exist
+
+CONSTITUTIONAL RULES:
+- Absolute paths only, never use relative paths
+- ONE config location (verify before creating config)
+- NO new directories without explicit approval
+- Generate ONE file per operation, then STOP
+- All imports must use absolute paths
+
+VIOLATION = HALT IMMEDIATELY

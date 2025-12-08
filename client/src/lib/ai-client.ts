@@ -12,7 +12,7 @@ export interface AIClientConfig {
   model?: string;
 }
 
-export type AIProvider = 'mock' | 'gemini' | 'cloudflare' | 'production';
+export type AIProvider = 'mock' | 'gemini' | 'cloudflare' | 'production' | 'groq' | 'kimiki2';
 
 export interface AIResponse {
   content: string;
@@ -108,7 +108,7 @@ class GeminiAIClient implements AIClient {
           systemPrompt: config?.systemPrompt,
           temperature: config?.temperature || 0.7,
           maxTokens: config?.maxTokens || 2048,
-          model: config?.model || 'gemini-1.5-flash'
+          model: config?.model || 'gemini-3-pro-preview'
         }),
         credentials: 'include'
       });
@@ -120,8 +120,7 @@ class GeminiAIClient implements AIClient {
       return await response.json();
     } catch (error) {
       console.error('Gemini AI client error:', error);
-      const mockClient = new MockAIClient();
-      return mockClient.generate(prompt, config);
+      throw error; // Re-throw the original error instead of falling back to mock
     }
   }
 }
@@ -162,8 +161,46 @@ class CloudflareAIClient implements AIClient {
       return await response.json();
     } catch (error) {
       console.error('Cloudflare AI client error:', error);
-      const mockClient = new MockAIClient();
-      return mockClient.generate(prompt, config);
+      throw error; // Re-throw the original error instead of falling back to mock
+    }
+  }
+}
+
+/**
+ * Groq AI Client - Groq API integration using OpenAI-compatible API
+ */
+class GroqAIClient implements AIClient {
+  private apiKey: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  async generate(prompt: string, config?: AIClientConfig): Promise<AIResponse> {
+    try {
+      const response = await fetch('/api/ai/groq/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt,
+          systemPrompt: config?.systemPrompt,
+          temperature: config?.temperature || 0.7,
+          maxTokens: config?.maxTokens || 2048,
+          model: config?.model || 'mixtral-8x7b-32768'
+        }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Groq AI error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Groq AI client error:', error);
+      throw error; // Re-throw the original error instead of falling back to mock
     }
   }
 }
@@ -201,8 +238,7 @@ class ProductionAIClient implements AIClient {
       return await response.json();
     } catch (error) {
       console.error('Production AI client error:', error);
-      const mockClient = new MockAIClient();
-      return mockClient.generate(prompt, config);
+      throw error; // Re-throw the original error instead of falling back to mock
     }
   }
 }
@@ -236,6 +272,25 @@ export function createAIClient(provider?: AIProvider): AIClient {
       return new CloudflareAIClient(accountId, apiToken);
     }
     
+    case 'groq': {
+      const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+      if (!apiKey) {
+        console.warn('Groq API key not found, falling back to mock client');
+        return new MockAIClient();
+      }
+      return new GroqAIClient(apiKey);
+    }
+    
+    case 'kimiki2': {
+      // Kimiki2 integration - could be another AI service
+      const apiKey = import.meta.env.VITE_KIMIKI2_API_KEY || import.meta.env.VITE_GROQ_API_KEY;
+      if (!apiKey) {
+        console.warn('Kimiki2 API key not found, falling back to mock client');
+        return new MockAIClient();
+      }
+      return new GroqAIClient(apiKey); // Using Groq as Kimiki2 for now
+    }
+    
     case 'production': {
       const apiKey = import.meta.env.VITE_AI_API_KEY;
       return new ProductionAIClient(apiKey);
@@ -248,4 +303,4 @@ export function createAIClient(provider?: AIProvider): AIClient {
 }
 
 // Export for testing and advanced usage
-export { MockAIClient, GeminiAIClient, CloudflareAIClient, ProductionAIClient };
+export { MockAIClient, GeminiAIClient, CloudflareAIClient, GroqAIClient, ProductionAIClient };

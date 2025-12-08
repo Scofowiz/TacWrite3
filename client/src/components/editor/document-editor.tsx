@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Document } from "@/types";
+import { AIProviderSelector, AIProvider } from "@/components/layout/ai-provider-selector";
+import VersionHistoryModal from "./version-history-modal";
+import { useState, useEffect } from "react";
 
 interface DocumentEditorProps {
   document?: Document;
@@ -21,6 +24,30 @@ export default function DocumentEditor({
   canUndo = false,
   canRedo = false
 }: DocumentEditorProps) {
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
+  
+  // Initialize from localStorage to persist user's provider preference
+  const [currentProvider, setCurrentProvider] = useState<AIProvider>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ai-provider-preference');
+      if (saved && ['gemini', 'kimiki2'].includes(saved)) {
+        return saved as AIProvider;
+      }
+    }
+    return 'gemini';
+  });
+
+  // Sync with localStorage changes from other components
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const saved = localStorage.getItem('ai-provider-preference');
+      if (saved && saved !== currentProvider) {
+        setCurrentProvider(saved as AIProvider);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [currentProvider]);
   
   if (!document) {
     return null;
@@ -77,7 +104,11 @@ export default function DocumentEditor({
             <i className="fas fa-share-alt mr-2"></i>
             Share
           </Button>
-          <Button variant="ghost" size="sm">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setShowVersionHistory(true)}
+          >
             <i className="fas fa-history mr-2"></i>
             Version History
           </Button>
@@ -85,8 +116,21 @@ export default function DocumentEditor({
             <i className="fas fa-download mr-2"></i>
             Export
           </Button>
+          <AIProviderSelector
+            currentProvider={currentProvider}
+            onProviderChange={setCurrentProvider}
+          />
         </div>
       </div>
+
+      {/* Version History Modal */}
+      {document && (
+        <VersionHistoryModal
+          documentId={document.id}
+          isOpen={showVersionHistory}
+          onClose={() => setShowVersionHistory(false)}
+        />
+      )}
     </div>
   );
 }
