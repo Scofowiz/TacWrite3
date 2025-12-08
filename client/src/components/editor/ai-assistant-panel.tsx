@@ -461,6 +461,214 @@ export default function AiAssistantPanel({
 
   const usagePercentage = user ? (user.usageCount / user.maxUsage) * 100 : 0;
 
+  // Render panel content (used in both normal and lens modes)
+  const renderPanelContent = () => {
+    const contentMaxHeight = panelMode === 'lens' ? '100%' : 'calc(80vh - 200px)';
+    
+    return (
+      <div className="overflow-y-auto flex-1" style={{ maxHeight: contentMaxHeight }}>
+        {activeTab === 'chat' ? renderChatInterface() : renderQuickActions()}
+      </div>
+    );
+  };
+
+  const renderChatInterface = () => (
+    /* Chat Interface */
+    <div className="flex flex-col h-full">
+      {/* Chat Messages */}
+      <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+        {chatMessages.length === 0 ? (
+          <div className="text-center py-8 text-neutral-400 text-sm">
+            <i className="fas fa-comments text-3xl mb-2"></i>
+            <p>Start a conversation with AI</p>
+            <p className="text-xs mt-1">Ask questions, request edits, or brainstorm ideas</p>
+          </div>
+        ) : (
+          chatMessages.map((msg, idx) => (
+            <div
+              key={idx}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                  msg.role === 'user'
+                    ? 'bg-accent text-white'
+                    : 'bg-neutral-100 text-neutral-800'
+                }`}
+              >
+                {msg.isStreaming && !msg.content ? (
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    {/* Apply button for AI responses */}
+                    {msg.role === 'ai' && msg.content && !msg.isStreaming && (
+                      <div className="mt-2 pt-2 border-t border-neutral-200 flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="text-xs"
+                          onClick={() => applyEnhancement(msg.content)}
+                        >
+                          <i className="fas fa-check mr-1"></i>
+                          Apply to Document
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          onClick={() => {
+                            toast({ description: "Suggestion dismissed" });
+                          }}
+                        >
+                          <i className="fas fa-times mr-1"></i>
+                          Dismiss
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-white/70' : 'text-neutral-500'}`}>
+                  {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* Chat Input */}
+      <div className="p-4 border-t border-neutral-200">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
+            placeholder="Type your message..."
+            className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+            disabled={enhanceTextMutation.isPending || isStreaming}
+          />
+          <Button
+            size="sm"
+            onClick={() => handleChatSubmit()}
+            disabled={!chatInput.trim() || enhanceTextMutation.isPending || isStreaming}
+          >
+            <i className="fas fa-paper-plane"></i>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderQuickActions = () => null; // Will implement this next
+
+  const usagePercentage = user ? (user.usageCount / user.maxUsage) * 100 : 0;
+
+  // Render panel content (used in both normal and lens modes)
+  const renderPanelContent = () => (
+    <div className="overflow-y-auto flex-1">
+      {activeTab === 'chat' ? (
+        /* Chat Interface */
+        <div className="flex flex-col h-full">
+          {/* Chat Messages */}
+          <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+            {chatMessages.length === 0 ? (
+              <div className="text-center py-8 text-neutral-400 text-sm">
+                <i className="fas fa-comments text-3xl mb-2"></i>
+                <p>Start a conversation with AI</p>
+                <p className="text-xs mt-1">Ask questions, request edits, or brainstorm ideas</p>
+              </div>
+            ) : (
+              chatMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                      msg.role === 'user'
+                        ? 'bg-accent text-white'
+                        : 'bg-neutral-100 text-neutral-800'
+                    }`}
+                  >
+                    {msg.isStreaming && !msg.content ? (
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        {/* Apply button for AI responses */}
+                        {msg.role === 'ai' && msg.content && !msg.isStreaming && (
+                          <div className="mt-2 pt-2 border-t border-neutral-200 flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="text-xs"
+                              onClick={() => applyEnhancement(msg.content)}
+                            >
+                              <i className="fas fa-check mr-1"></i>
+                              Apply to Document
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs"
+                              onClick={() => {
+                                toast({ description: "Suggestion dismissed" });
+                              }}
+                            >
+                              <i className="fas fa-times mr-1"></i>
+                              Dismiss
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-white/70' : 'text-neutral-500'}`}>
+                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Chat Input */}
+          <div className="p-4 border-t border-neutral-200">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
+                placeholder="Type your message..."
+                className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                disabled={enhanceTextMutation.isPending || isStreaming}
+              />
+              <Button
+                size="sm"
+                onClick={() => handleChatSubmit()}
+                disabled={!chatInput.trim() || enhanceTextMutation.isPending || isStreaming}
+              >
+                <i className="fas fa-paper-plane"></i>
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
   // Minimized FAB
   if (panelMode === 'minimized') {
     return (
@@ -502,10 +710,11 @@ export default function AiAssistantPanel({
           
           {/* Lens content - reuse the same content structure */}
           <div className="flex-1 overflow-hidden flex flex-col p-6">
-            <div className="flex gap-4 mb-4">
+            <div className="flex gap-4 mb-6">
               <Button
                 variant={activeTab === 'chat' ? 'default' : 'outline'}
                 onClick={() => setActiveTab('chat')}
+                size="lg"
               >
                 <i className="fas fa-comments mr-2"></i>
                 Chat
@@ -513,17 +722,14 @@ export default function AiAssistantPanel({
               <Button
                 variant={activeTab === 'actions' ? 'default' : 'outline'}
                 onClick={() => setActiveTab('actions')}
+                size="lg"
               >
                 <i className="fas fa-bolt mr-2"></i>
                 Quick Actions
               </Button>
             </div>
-            {/* Content will be added here - for now just show a placeholder */}
-            <div className="flex-1 bg-neutral-50 rounded-lg p-8 text-center text-neutral-500">
-              <i className="fas fa-sparkles text-4xl mb-4"></i>
-              <p>AI Lens Mode - Full Screen Interaction</p>
-              <p className="text-sm mt-2">This is where you can work with AI in a distraction-free environment</p>
-            </div>
+            {/* Render the full content */}
+            {renderPanelContent()}
           </div>
         </div>
       </div>
