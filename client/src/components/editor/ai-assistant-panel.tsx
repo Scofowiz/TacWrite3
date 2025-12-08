@@ -15,6 +15,13 @@ interface AiAssistantPanelProps {
   narrativeMode?: string;
 }
 
+interface ChatMessage {
+  role: 'user' | 'ai';
+  content: string;
+  timestamp: Date;
+  isStreaming?: boolean;
+}
+
 export default function AiAssistantPanel({
   document,
   onClose,
@@ -22,6 +29,14 @@ export default function AiAssistantPanel({
   onTextUpdate,
   narrativeMode = "continue"
 }: AiAssistantPanelProps) {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<'chat' | 'actions'>('actions');
+  
+  // Chat state
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  
+  // Existing state
   const [selectedText, setSelectedText] = useState("");
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -34,6 +49,7 @@ export default function AiAssistantPanel({
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedText, setStreamedText] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { recordInteraction } = useCommunityMemory();
@@ -48,6 +64,11 @@ export default function AiAssistantPanel({
       });
     }
   }, []);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return; // Don't drag when clicking buttons
@@ -336,6 +357,49 @@ export default function AiAssistantPanel({
     });
   };
 
+  // Chat handlers
+  const handleChatSubmit = (message?: string) => {
+    const messageText = message || chatInput.trim();
+    if (!messageText) return;
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: messageText,
+      timestamp: new Date()
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput("");
+
+    // Add AI "thinking" message
+    const aiMessage: ChatMessage = {
+      role: 'ai',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true
+    };
+    setChatMessages(prev => [...prev, aiMessage]);
+
+    // Trigger enhancement (reuse existing mutation)
+    enhanceTextMutation.mutate({
+      text: selectedText || document.content || '',
+      enhancementType: messageText, // Use the chat message as the enhancement type
+      documentId: document.id,
+      useStreaming: true
+    });
+  };
+
+  const handleQuickAction = (type: string) => {
+    // Quick actions can optionally add to chat
+    if (activeTab === 'chat') {
+      const actionMessage = `[Quick Action: ${type}]`;
+      handleChatSubmit(actionMessage);
+    } else {
+      // Original behavior
+      handleEnhancement(type, false);
+    }
+  };
+
   const usagePercentage = user ? (user.usageCount / user.maxUsage) * 100 : 0;
 
   return (
@@ -352,7 +416,7 @@ export default function AiAssistantPanel({
       onMouseDown={handleMouseDown}
     >
       <div className="p-4 border-b border-neutral-200 select-none">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center space-x-2">
             <div className="w-6 h-6 bg-accent rounded flex items-center justify-center">
               <i className="fas fa-magic text-white text-xs"></i>
@@ -363,9 +427,99 @@ export default function AiAssistantPanel({
             <i className="fas fa-times text-sm"></i>
           </Button>
         </div>
+        
+        {/* Tab Navigation */}
+        <div className="flex gap-2">
+          <Button
+            variant={activeTab === 'chat' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab('chat')}
+            className="flex-1 text-xs"
+          >
+            <i className="fas fa-comments mr-1"></i>
+            Chat
+          </Button>
+          <Button
+            variant={activeTab === 'actions' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveTab('actions')}
+            className="flex-1 text-xs"
+          >
+            <i className="fas fa-bolt mr-1"></i>
+            Quick Actions
+          </Button>
+        </div>
       </div>
       
-      <div className="p-4 space-y-4 overflow-y-auto max-h-96">
+      <div className="overflow-y-auto" style={{ maxHeight: 'calc(80vh - 200px)' }}>
+        {activeTab === 'chat' ? (
+          /* Chat Interface */
+          <div className="flex flex-col h-full">
+            {/* Chat Messages */}
+            <div className="flex-1 p-4 space-y-3 overflow-y-auto">
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-8 text-neutral-400 text-sm">
+                  <i className="fas fa-comments text-3xl mb-2"></i>
+                  <p>Start a conversation with AI</p>
+                  <p className="text-xs mt-1">Ask questions, request edits, or brainstorm ideas</p>
+                </div>
+              ) : (
+                chatMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
+                        msg.role === 'user'
+                          ? 'bg-accent text-white'
+                          : 'bg-neutral-100 text-neutral-800'
+                      }`}
+                    >
+                      {msg.isStreaming && !msg.content ? (
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        </div>
+                      ) : (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      )}
+                      <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-white/70' : 'text-neutral-500'}`}>
+                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat Input */}
+            <div className="p-4 border-t border-neutral-200">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleChatSubmit()}
+                  placeholder="Type your message..."
+                  className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                  disabled={enhanceTextMutation.isPending || isStreaming}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => handleChatSubmit()}
+                  disabled={!chatInput.trim() || enhanceTextMutation.isPending || isStreaming}
+                >
+                  <i className="fas fa-paper-plane"></i>
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Quick Actions Interface (existing) */
+          <div className="p-4 space-y-4">
         {/* Context Indicator */}
         {(() => {
           const hasSelection = selectedText && selectedText.trim().length > 0;
@@ -694,6 +848,8 @@ export default function AiAssistantPanel({
             Premium AI features are now available for unlimited use. Try Auto-Complete, Market Insights, and Coach features!
           </p>
         </div>
+          </div>
+        )}
       </div>
     </div>
   );
