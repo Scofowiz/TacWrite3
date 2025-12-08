@@ -13,6 +13,8 @@ interface DocumentEditorProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  saveStatus?: "saved" | "saving" | "unsaved";
+  onManualSave?: () => void;
 }
 
 export default function DocumentEditor({
@@ -22,7 +24,9 @@ export default function DocumentEditor({
   onUndo,
   onRedo,
   canUndo = false,
-  canRedo = false
+  canRedo = false,
+  saveStatus = "saved",
+  onManualSave
 }: DocumentEditorProps) {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   
@@ -78,7 +82,39 @@ export default function DocumentEditor({
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-1 border-r border-neutral-200 pr-3">
+          {/* Save Status Indicator */}
+          <div className="flex items-center space-x-2 text-sm text-neutral-600">
+            {saveStatus === "saved" && (
+              <>
+                <i className="fas fa-check-circle text-green-500"></i>
+                <span>Saved</span>
+              </>
+            )}
+            {saveStatus === "saving" && (
+              <>
+                <i className="fas fa-circle-notch fa-spin text-blue-500"></i>
+                <span>Saving...</span>
+              </>
+            )}
+            {saveStatus === "unsaved" && (
+              <>
+                <i className="fas fa-exclamation-circle text-amber-500"></i>
+                <span>Unsaved</span>
+                {onManualSave && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onManualSave}
+                    className="ml-1 text-xs"
+                  >
+                    Save Now
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+          
+          <div className="flex items-center space-x-1 border-l border-neutral-200 pl-3">
             <Button 
               variant="ghost" 
               size="sm" 

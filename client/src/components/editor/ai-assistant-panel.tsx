@@ -29,6 +29,12 @@ export default function AiAssistantPanel({
   onTextUpdate,
   narrativeMode = "continue"
 }: AiAssistantPanelProps) {
+  // Panel mode state
+  const [panelMode, setPanelMode] = useState<'normal' | 'minimized' | 'expanded' | 'lens'>('normal');
+  
+  // Panel mode state
+  const [panelMode, setPanelMode] = useState<'normal' | 'minimized' | 'expanded' | 'lens'>('normal');
+  
   // Tab state
   const [activeTab, setActiveTab] = useState<'chat' | 'actions'>('actions');
   
@@ -147,8 +153,29 @@ export default function AiAssistantPanel({
         handleStreamingEnhancement(data);
         return;
       }
+      
+      // Store enhancement data (for Quick Actions tab)
       setLastEnhancement(data.enhancedText);
       setLastEnhancementData(data);
+      
+      // ALSO update chat messages (for Chat tab)
+      if (activeTab === 'chat') {
+        setChatMessages(prev => {
+          // Find the last AI message (the "typing" indicator) and update it
+          const updated = [...prev];
+          const lastAiIndex = updated.findLastIndex(msg => msg.role === 'ai');
+          if (lastAiIndex !== -1) {
+            updated[lastAiIndex] = {
+              role: 'ai',
+              content: data.enhancedText,
+              timestamp: new Date(),
+              isStreaming: false
+            };
+          }
+          return updated;
+        });
+      }
+      
       // Store process notes separately - NOT for document insertion
       if (data.processNotes) {
         setProcessNotes(data.processNotes);
@@ -215,7 +242,24 @@ export default function AiAssistantPanel({
             try {
               const data = JSON.parse(line.substring(6));
               if (data.chunk) {
-                setStreamedText(prev => prev + data.chunk);
+                const newChunk = data.chunk;
+                setStreamedText(prev => prev + newChunk);
+                
+                // ALSO update chat in real-time (if in chat tab)
+                if (activeTab === 'chat') {
+                  setChatMessages(prev => {
+                    const updated = [...prev];
+                    const lastAiIndex = updated.findLastIndex(msg => msg.role === 'ai');
+                    if (lastAiIndex !== -1) {
+                      updated[lastAiIndex] = {
+                        ...updated[lastAiIndex],
+                        content: updated[lastAiIndex].content + newChunk,
+                        isStreaming: true
+                      };
+                    }
+                    return updated;
+                  });
+                }
               }
               if (data.done) {
                 setLastEnhancement(data.fullText);
@@ -226,6 +270,21 @@ export default function AiAssistantPanel({
                   isFromCursor: config.isFromCursor
                 });
                 setShowFeedback(true);
+                
+                // Mark chat message as complete
+                if (activeTab === 'chat') {
+                  setChatMessages(prev => {
+                    const updated = [...prev];
+                    const lastAiIndex = updated.findLastIndex(msg => msg.role === 'ai');
+                    if (lastAiIndex !== -1) {
+                      updated[lastAiIndex] = {
+                        ...updated[lastAiIndex],
+                        isStreaming: false
+                      };
+                    }
+                    return updated;
+                  });
+                }
               }
             } catch (e) {
               // Ignore parse errors for partial data
@@ -402,14 +461,88 @@ export default function AiAssistantPanel({
 
   const usagePercentage = user ? (user.usageCount / user.maxUsage) * 100 : 0;
 
+  // Minimized FAB
+  if (panelMode === 'minimized') {
+    return (
+      <button
+        onClick={() => setPanelMode('normal')}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 z-50 flex items-center justify-center"
+        title="Open AI Assistant"
+      >
+        <i className="fas fa-magic text-xl"></i>
+      </button>
+    );
+  }
+
+  // Lens mode - full screen overlay
+  if (panelMode === 'lens') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        {/* Backdrop blur */}
+        <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setPanelMode('normal')}></div>
+        
+        {/* Lens content */}
+        <div className="relative bg-white/95 rounded-2xl shadow-2xl border-2 border-purple-500 w-[90vw] h-[90vh] flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <i className="fas fa-magic text-xl"></i>
+              <span className="font-bold text-lg">AI Lens</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPanelMode('normal')}
+              className="text-white hover:bg-white/20"
+            >
+              <i className="fas fa-compress mr-2"></i>
+              Exit Lens
+            </Button>
+          </div>
+          
+          {/* Lens content - reuse the same content structure */}
+          <div className="flex-1 overflow-hidden flex flex-col p-6">
+            <div className="flex gap-4 mb-4">
+              <Button
+                variant={activeTab === 'chat' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('chat')}
+              >
+                <i className="fas fa-comments mr-2"></i>
+                Chat
+              </Button>
+              <Button
+                variant={activeTab === 'actions' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('actions')}
+              >
+                <i className="fas fa-bolt mr-2"></i>
+                Quick Actions
+              </Button>
+            </div>
+            {/* Content will be added here - for now just show a placeholder */}
+            <div className="flex-1 bg-neutral-50 rounded-lg p-8 text-center text-neutral-500">
+              <i className="fas fa-sparkles text-4xl mb-4"></i>
+              <p>AI Lens Mode - Full Screen Interaction</p>
+              <p className="text-sm mt-2">This is where you can work with AI in a distraction-free environment</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate panel size based on mode
+  const panelWidth = panelMode === 'expanded' ? 'w-[600px]' : 'w-80';
+  const panelStyle = panelMode === 'expanded' 
+    ? { left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }
+    : { left: position.x, top: position.y };
+
   return (
     <div 
       ref={panelRef}
-      className="fixed w-80 bg-white rounded-lg shadow-lg border border-neutral-200 z-20 cursor-move overflow-hidden"
+      className={`fixed ${panelWidth} bg-white rounded-lg shadow-lg border border-neutral-200 z-20 cursor-move overflow-hidden`}
       style={{ 
-        left: position.x, 
-        top: position.y,
-        transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+        ...panelStyle,
+        transform: isDragging ? 'scale(1.02)' : (panelMode === 'expanded' ? 'translate(-50%, -50%)' : 'scale(1)'),
         transition: isDragging ? 'none' : 'transform 0.2s ease',
         maxHeight: '80vh',
       }}
@@ -423,9 +556,35 @@ export default function AiAssistantPanel({
             </div>
             <h3 className="text-sm font-medium text-neutral-800">AI Writing Assistant</h3>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <i className="fas fa-times text-sm"></i>
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setPanelMode(panelMode === 'lens' ? 'normal' : 'lens')}
+              title="AI Lens Mode"
+            >
+              <i className={`fas ${panelMode === 'lens' ? 'fa-compress' : 'fa-expand'} text-sm`}></i>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setPanelMode(panelMode === 'expanded' ? 'normal' : 'expanded')}
+              title="Expand Panel"
+            >
+              <i className={`fas ${panelMode === 'expanded' ? 'fa-compress-alt' : 'fa-expand-alt'} text-sm`}></i>
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setPanelMode('minimized')}
+              title="Minimize"
+            >
+              <i className="fas fa-minus text-sm"></i>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose} title="Close">
+              <i className="fas fa-times text-sm"></i>
+            </Button>
+          </div>
         </div>
         
         {/* Tab Navigation */}
@@ -483,7 +642,34 @@ export default function AiAssistantPanel({
                           <div className="w-2 h-2 bg-neutral-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
                       ) : (
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        <>
+                          <div className="whitespace-pre-wrap">{msg.content}</div>
+                          {/* Apply button for AI responses */}
+                          {msg.role === 'ai' && msg.content && !msg.isStreaming && (
+                            <div className="mt-2 pt-2 border-t border-neutral-200 flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                className="text-xs"
+                                onClick={() => applyEnhancement(msg.content)}
+                              >
+                                <i className="fas fa-check mr-1"></i>
+                                Apply to Document
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-xs"
+                                onClick={() => {
+                                  toast({ description: "Suggestion dismissed" });
+                                }}
+                              >
+                                <i className="fas fa-times mr-1"></i>
+                                Dismiss
+                              </Button>
+                            </div>
+                          )}
+                        </>
                       )}
                       <div className={`text-xs mt-1 ${msg.role === 'user' ? 'text-white/70' : 'text-neutral-500'}`}>
                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

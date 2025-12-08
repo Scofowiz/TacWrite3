@@ -209,6 +209,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a document
+  app.delete("/api/documents/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      console.log('[DELETE Document] Received request for ID:', id);
+      
+      // Check if document exists first
+      const existingDoc = await storage.getDocument(id);
+      if (!existingDoc) {
+        console.log('[DELETE Document] Document not found:', id);
+        return res.status(404).json({ message: "Document not found" });
+      }
+      
+      console.log('[DELETE Document] Found document:', existingDoc.title);
+      const success = await storage.deleteDocument(id);
+      console.log('[DELETE Document] Delete result:', success);
+      
+      if (!success) {
+        console.log('[DELETE Document] Delete operation returned false');
+        return res.status(500).json({ message: "Delete operation failed" });
+      }
+      
+      console.log('[DELETE Document] Successfully deleted');
+      res.json({ message: "Document deleted successfully", success: true });
+    } catch (error) {
+      console.error('[DELETE Document] Error:', error);
+      res.status(500).json({ message: "Failed to delete document", error: String(error) });
+    }
+  });
+
   // Get document version history
   app.get("/api/documents/:id/versions", async (req, res) => {
     try {

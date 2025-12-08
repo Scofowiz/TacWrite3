@@ -59,13 +59,22 @@ export default function InstructionPanel({ document, onDocumentDeleted, onNarrat
   // Mutation to delete document
   const deleteDocumentMutation = useMutation({
     mutationFn: async () => {
-      if (!document?.id) return;
+      if (!document?.id) throw new Error('No document ID');
+      
+      console.log('[Delete] Sending DELETE request for:', document.id);
       const response = await fetch(`/api/documents/${document.id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to delete document');
-      return response.json();
+      
+      console.log('[Delete] Response status:', response.status);
+      const data = await response.json();
+      console.log('[Delete] Response data:', data);
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete document');
+      }
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
@@ -76,10 +85,11 @@ export default function InstructionPanel({ document, onDocumentDeleted, onNarrat
       setShowDeleteConfirm(false);
       onDocumentDeleted?.();
     },
-    onError: () => {
+    onError: (error: Error) => {
+      console.error('[Delete] Error:', error);
       toast({
         title: "Delete failed",
-        description: "Could not delete the document. Please try again.",
+        description: error.message || "Could not delete the document. Please try again.",
         variant: "destructive"
       });
     }

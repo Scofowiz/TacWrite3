@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import DocumentSidebar from "@/components/editor/document-sidebar";
 import DocumentEditor from "@/components/editor/document-editor";
@@ -19,6 +19,7 @@ export default function EditorView() {
   const [undoHistory, setUndoHistory] = useState<string[]>([]);
   const [redoHistory, setRedoHistory] = useState<string[]>([]);
   const [lastSavedContent, setLastSavedContent] = useState("");
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
@@ -99,6 +100,43 @@ export default function EditorView() {
     });
   };
 
+  const handleDocumentDeleted = () => {
+    // Clear the selected document after deletion
+    setSelectedDocumentId(null);
+    setDocumentContent("");
+    setDocumentTitle("");
+    setLastSavedContent("");
+    setSaveStatus("saved");
+    setUndoHistory([]);
+    setRedoHistory([]);
+  };
+
+  const saveDocument = useCallback((content: string, immediate = false) => {
+    if (!selectedDocumentId) return; // No document selected
+    if (content === lastSavedContent) return; // Already saved
+    
+    const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
+    setSaveStatus("saving");
+    
+    updateDocumentMutation.mutate(
+      { content, wordCount },
+      {
+        onSuccess: () => {
+          setLastSavedContent(content);
+          setSaveStatus("saved");
+        },
+        onError: (error: Error) => {
+          setSaveStatus("unsaved");
+          toast({
+            title: "Save failed",
+            description: error.message || "Failed to save document",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  }, [selectedDocumentId, lastSavedContent, updateDocumentMutation, toast]);
+
   const handleContentChange = (content: string, skipHistory = false) => {
     // Add to undo history if this is a user action (not undo/redo)
     // Also check that content has actually changed
@@ -111,7 +149,7 @@ export default function EditorView() {
     }
     
     setDocumentContent(content);
-    const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
+    setSaveStatus("unsaved");
     
     // Clear previous timeout
     if (autoSaveTimeout.current) {
@@ -120,8 +158,7 @@ export default function EditorView() {
     
     // Auto-save after 2 seconds of no typing
     autoSaveTimeout.current = setTimeout(() => {
-      updateDocumentMutation.mutate({ content, wordCount });
-      setLastSavedContent(content);
+      saveDocument(content);
     }, 2000);
   };
 
@@ -163,11 +200,42 @@ export default function EditorView() {
     if (selectedDocument) {
       setDocumentTitle(selectedDocument.title);
       setDocumentContent(selectedDocument.content);
+      setLastSavedContent(selectedDocument.content);
+      setSaveStatus("saved");
       // Reset undo/redo history when switching documents
       setUndoHistory([]);
       setRedoHistory([]);
     }
   }, [selectedDocument]);
+
+  // Periodic auto-save every 30 seconds
+  useEffect(() => {
+    if (!selectedDocumentId) return;
+
+    const interval = setInterval(() => {
+      if (documentContent !== lastSavedContent) {
+        saveDocument(documentContent);
+      }
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [selectedDocumentId, documentContent, lastSavedContent, saveDocument]);
+
+  // Save on page unload to prevent data loss
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (documentContent !== lastSavedContent && selectedDocumentId) {
+        // Attempt synchronous save
+        saveDocument(documentContent, true);
+        // Show browser warning
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [documentContent, lastSavedContent, selectedDocumentId, saveDocument]);
 
   // Add keyboard shortcuts for undo/redo
   useEffect(() => {
@@ -214,6 +282,8 @@ export default function EditorView() {
           onRedo={handleRedo}
           canUndo={undoHistory.length > 0}
           canRedo={redoHistory.length > 0}
+          saveStatus={saveStatus}
+          onManualSave={() => saveDocument(documentContent, true)}
         />
 
         <div className="flex-1 flex">
@@ -265,7 +335,11 @@ export default function EditorView() {
                 document={selectedDocument}
                 onClose={() => setAiAssistantVisible(false)}
                 onPremiumFeature={handlePremiumFeature}
-                onTextUpdate={handleContentChange}
+                onTextUpdate={(content) => {
+                  handleContentChange(content);
+                  // Immediate save after AI enhancement
+                  setTimeout(() => saveDocument(content, true), 100);
+                }}
                 narrativeMode={narrativeMode}
               />
             )}
@@ -275,6 +349,7 @@ export default function EditorView() {
           <InstructionPanel
             document={selectedDocument}
             onNarrativeModeChange={setNarrativeMode}
+            onDocumentDeleted={handleDocumentDeleted}
           />
         </div>
       </div>

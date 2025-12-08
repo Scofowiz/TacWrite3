@@ -35,7 +35,7 @@ export const documents = pgTable("documents", {
 export const aiInteractions = pgTable("ai_interactions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
-  documentId: varchar("document_id").references(() => documents.id),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: 'cascade' }),
   agentType: text("agent_type").notNull(), // writing-assistant, autonomous-writer, wfa-agent, tutor
   inputText: text("input_text").notNull(),
   outputText: text("output_text").notNull(),
