@@ -113,7 +113,6 @@ export default function EditorView() {
 
   const saveDocument = useCallback((content: string, immediate = false) => {
     if (!selectedDocumentId) return; // No document selected
-    if (content === lastSavedContent) return; // Already saved
     
     const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
     setSaveStatus("saving");
@@ -135,7 +134,7 @@ export default function EditorView() {
         },
       }
     );
-  }, [selectedDocumentId, lastSavedContent, updateDocumentMutation, toast]);
+  }, [selectedDocumentId, updateDocumentMutation.mutate, toast]);
 
   const handleContentChange = (content: string, skipHistory = false) => {
     // Add to undo history if this is a user action (not undo/redo)

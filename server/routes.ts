@@ -205,7 +205,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(updatedDocument);
     } catch (error) {
-      res.status(500).json({ message: "Failed to update document" });
+      console.error('[PATCH Document] Error:', error);
+      res.status(500).json({ 
+        message: "Failed to update document",
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
