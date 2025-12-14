@@ -105,8 +105,7 @@ export default function InstructionPanel({ document, onDocumentDeleted, onNarrat
         body: JSON.stringify({
           title: `${document.title} (Copy)`,
           content: document.content,
-          context: document.context,
-          folderId: document.folderId
+          context: document.context
         }),
         credentials: 'include'
       });
@@ -368,6 +367,24 @@ export default function InstructionPanel({ document, onDocumentDeleted, onNarrat
                   </div>
                 </div>
               </SelectItem>
+              <SelectItem value="reflect">
+                <div className="flex items-center gap-2">
+                  <span>🤔</span>
+                  <div>
+                    <div className="font-semibold">Reflect (Pause)</div>
+                    <div className="text-xs text-neutral-500">Pause and consider the work done so far</div>
+                  </div>
+                </div>
+              </SelectItem>
+              <SelectItem value="revisit">
+                <div className="flex items-center gap-2">
+                  <span>🔄</span>
+                  <div>
+                    <div className="font-semibold">Revisit (Iterate)</div>
+                    <div className="text-xs text-neutral-500">Review and improve what was written</div>
+                  </div>
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
           
@@ -396,6 +413,16 @@ export default function InstructionPanel({ document, onDocumentDeleted, onNarrat
             {narrativeMode === "analyze" && (
               <p className="text-xs text-neutral-600">
                 <strong>Editorial Analysis Mode.</strong> Provides feedback on theme, pacing, character consistency, prose style, and potential continuity errors.
+              </p>
+            )}
+            {narrativeMode === "reflect" && (
+              <p className="text-xs text-neutral-600">
+                <strong>Reflection Mode.</strong> Pauses to consider the work done so far, providing thoughtful analysis and insights about the current content.
+              </p>
+            )}
+            {narrativeMode === "revisit" && (
+              <p className="text-xs text-neutral-600">
+                <strong>Revision Mode.</strong> Iterates on existing content, suggesting improvements and refinements to enhance clarity, flow, and impact.
               </p>
             )}
           </div>

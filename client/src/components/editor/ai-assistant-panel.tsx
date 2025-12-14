@@ -6,12 +6,13 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { Document, User } from "@shared/schema";
 import { useCommunityMemory } from "@/hooks/use-ai-assistant";
+import { ContentUpdateMeta } from "@/context/undo-redo-context";
 
 interface AiAssistantPanelProps {
   document: Document;
   onClose: () => void;
   onPremiumFeature: () => void;
-  onTextUpdate?: (text: string) => void;
+  onTextUpdate?: (text: string, meta?: ContentUpdateMeta | null) => void;
   narrativeMode?: string;
 }
 
@@ -21,6 +22,78 @@ interface ChatMessage {
   timestamp: Date;
   isStreaming?: boolean;
 }
+
+type EnhancementTracking = Record<string, any> & {
+  enhancedText: string;
+  enhancementType?: string;
+  cursorPosition?: number;
+  selectionStart?: number;
+  selectionEnd?: number;
+  originalSelection?: string | null;
+  isFromCursor?: boolean;
+};
+
+interface EnhancementRequest {
+  text: string;
+  enhancementType: string;
+  documentId: string;
+  useStreaming?: boolean;
+  selectionStart?: number;
+  selectionEnd?: number;
+  originalSelection?: string | null;
+  cursorPosition?: number;
+  conversationHistory?: ChatMessage[];
+}
+
+const ANALYTICS_PREFIXES = [
+  /^(analysis|process|reflection|reasoning|critique|quality score|score|metrics|insight|notes?)[\s:]/i,
+  /^\s*(step|phase|round)\s*\d+/i,
+  /^\s*plan\s*:/i,
+  /^\s*final answer[:\-]/i,
+  /^\s*system diagnostics/i,
+];
+
+const stripCodeFences = (input: string) => input.replace(/```[\s\S]*?```/g, "");
+
+const sanitizeEnhancedText = (input: string) => {
+  if (!input) return "";
+  const withoutFences = stripCodeFences(input).replace(/\uFEFF/g, "");
+  const lines = withoutFences.split(/\r?\n/);
+  const filtered = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return true;
+    return !ANALYTICS_PREFIXES.some((regex) => regex.test(trimmed));
+  });
+  return filtered.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+const trimContinuationPrefix = (insertion: string, beforeContext: string) => {
+  if (!insertion || !beforeContext) return insertion;
+  const windowText = beforeContext.slice(-200);
+  const normalizedInsertion = insertion.replace(/\s+/g, " ").toLowerCase();
+  for (let length = Math.min(windowText.length, 120); length >= 30; length -= 10) {
+    const suffix = windowText.slice(-length);
+    const normalizedSuffix = suffix.replace(/\s+/g, " ").toLowerCase();
+    if (normalizedSuffix && normalizedInsertion.startsWith(normalizedSuffix)) {
+      return insertion.slice(suffix.length).trimStart();
+    }
+  }
+  return insertion;
+};
+
+const trimSelectionPrefix = (insertion: string, selection: string | null) => {
+  if (!insertion || !selection) return insertion;
+  const normalizedSelection = selection.replace(/\s+/g, " ").toLowerCase().trim();
+  if (!normalizedSelection) return insertion;
+  const normalizedInsertion = insertion.replace(/\s+/g, " ").toLowerCase();
+  if (normalizedInsertion === normalizedSelection) {
+    return "";
+  }
+  if (normalizedInsertion.startsWith(normalizedSelection) && insertion.length > selection.length) {
+    return insertion.slice(selection.length).trimStart();
+  }
+  return insertion;
+};
 
 export default function AiAssistantPanel({
   document,
@@ -38,14 +111,17 @@ export default function AiAssistantPanel({
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [useChatContext, setUseChatContext] = useState(true); // Toggle for using chat as context
   
   // Existing state
   const [selectedText, setSelectedText] = useState("");
+  const [lastSelectionRange, setLastSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const [lastCursorPosition, setLastCursorPosition] = useState<number | null>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [lastEnhancement, setLastEnhancement] = useState<string | null>(null);
-  const [lastEnhancementData, setLastEnhancementData] = useState<any>(null);
+  const [lastEnhancementData, setLastEnhancementData] = useState<EnhancementTracking | null>(null);
   const [currentSuggestion, setCurrentSuggestion] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
   const [processNotes, setProcessNotes] = useState<string | null>(null); // Separate meta-content
@@ -72,6 +148,45 @@ export default function AiAssistantPanel({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  useEffect(() => {
+    const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement | null;
+    if (!textarea) {
+      setSelectedText("");
+      setLastSelectionRange(null);
+      setLastCursorPosition(null);
+      return;
+    }
+
+    const updateSelection = () => {
+      const start = textarea.selectionStart ?? 0;
+      const end = textarea.selectionEnd ?? start;
+      const value = textarea.value ?? "";
+
+      setLastCursorPosition(end);
+      if (start !== end) {
+        setSelectedText(value.substring(start, end));
+        setLastSelectionRange({ start, end });
+      } else {
+        setSelectedText("");
+        setLastSelectionRange({ start, end });
+      }
+    };
+
+    updateSelection();
+
+    textarea.addEventListener('select', updateSelection);
+    textarea.addEventListener('keyup', updateSelection);
+    textarea.addEventListener('mouseup', updateSelection);
+    textarea.addEventListener('input', updateSelection);
+
+    return () => {
+      textarea.removeEventListener('select', updateSelection);
+      textarea.removeEventListener('keyup', updateSelection);
+      textarea.removeEventListener('mouseup', updateSelection);
+      textarea.removeEventListener('input', updateSelection);
+    };
+  }, [document.id]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return; // Don't drag when clicking buttons
@@ -110,76 +225,147 @@ export default function AiAssistantPanel({
     queryKey: ["/api/user/current"],
   });
 
-  const enhanceTextMutation = useMutation({
-    mutationFn: async (data: { text: string; enhancementType: string; documentId: string; useStreaming?: boolean }) => {
-      // Get current cursor position and context from the textarea
-      let cursorPosition = 0;
-      let contextAfter = "";
-      let isFromCursor = data.enhancementType === 'continue' || data.enhancementType === 'auto-complete';
-
-      // Find the textarea element to get accurate cursor position and bidirectional context
-      const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
-      if (textarea && isFromCursor) {
-        cursorPosition = textarea.selectionStart;
-        // Get text AFTER cursor for bidirectional awareness
-        contextAfter = textarea.value.substring(cursorPosition, cursorPosition + 400);
-      }
-
-      // Use streaming for continue/auto-complete, regular for others
-      if (data.useStreaming && isFromCursor) {
-        return { useStreaming: true, cursorPosition, contextAfter, isFromCursor };
-      }
-
-      // Get current provider from localStorage
+  const enhanceTextMutation = useMutation<any, Error, EnhancementRequest>({
+    mutationFn: async (request) => {
       const provider = localStorage.getItem('ai-provider-preference') || 'gemini';
-      
+      const supportsStreaming = provider === 'gemini';
+
+      const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement | null;
+
+      const selectionStart = typeof request.selectionStart === 'number'
+        ? request.selectionStart
+        : (textarea?.selectionStart ?? lastSelectionRange?.start ?? lastCursorPosition ?? 0);
+
+      const selectionEnd = typeof request.selectionEnd === 'number'
+        ? request.selectionEnd
+        : (textarea?.selectionEnd ?? lastSelectionRange?.end ?? lastCursorPosition ?? selectionStart);
+
+      const cursorPosition = typeof request.cursorPosition === 'number' ? request.cursorPosition : selectionEnd;
+
+      const requestedSelection = request.originalSelection ?? (
+        selectionStart !== selectionEnd
+          ? (textarea ? textarea.value.substring(selectionStart, selectionEnd) : selectedText || null)
+          : null
+      );
+      const originalSelection = requestedSelection && requestedSelection.length > 0 ? requestedSelection : null;
+
+      let contextAfter = "";
+      let contextText = request.text?.trim()?.length ? request.text : "";
+      const isFromCursor = request.enhancementType === 'continue' || request.enhancementType === 'auto-complete';
+
+      if (textarea) {
+        if (isFromCursor) {
+          contextAfter = textarea.value.substring(selectionEnd, selectionEnd + 400);
+          if (!contextText) {
+            const beforeSlice = textarea.value.substring(Math.max(0, selectionEnd - 1000), selectionEnd);
+            contextText = beforeSlice || textarea.value;
+          }
+        } else if (!contextText && selectionStart !== selectionEnd) {
+          contextText = textarea.value.substring(selectionStart, selectionEnd);
+        }
+      }
+
+      if (!contextText) {
+        const fallbackSource = document.content || '';
+        if (isFromCursor) {
+          contextText = fallbackSource.slice(-1000) || fallbackSource;
+          if (!contextAfter) {
+            contextAfter = fallbackSource.substring(cursorPosition, cursorPosition + 400);
+          }
+        } else if (selectionStart !== selectionEnd) {
+          contextText = fallbackSource.substring(selectionStart, selectionEnd) || fallbackSource.slice(-1000);
+        } else {
+          contextText = fallbackSource.slice(-1000) || fallbackSource;
+        }
+      }
+
+      if (request.useStreaming && isFromCursor && supportsStreaming) {
+        return {
+          useStreaming: true,
+          cursorPosition,
+          contextAfter,
+          isFromCursor,
+          contextText,
+          provider,
+          selectionStart,
+          selectionEnd,
+          originalSelection,
+        };
+      }
+
       const response = await apiRequest("POST", "/api/ai/enhance", {
-        text: data.text,
-        enhancementType: data.enhancementType,
-        documentId: data.documentId,
+        text: contextText,
+        enhancementType: request.enhancementType,
+        documentId: request.documentId,
         cursorPosition,
         isFromCursor,
-        contextAfter, // Send text after cursor for bidirectional awareness
-        provider // Include provider selection
+        contextAfter,
+        provider,
+        conversationHistory: request.conversationHistory,
       });
-      return response.json();
+
+      const result = await response.json();
+      return {
+        ...result,
+        cursorPosition,
+        isFromCursor,
+        provider,
+        selectionStart,
+        selectionEnd,
+        originalSelection,
+      };
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       if (data.useStreaming) {
-        // Handle streaming separately
-        handleStreamingEnhancement(data);
+        handleStreamingEnhancement({
+          cursorPosition: data.cursorPosition ?? variables.cursorPosition ?? variables.selectionEnd ?? variables.selectionStart ?? 0,
+          contextAfter: data.contextAfter ?? '',
+          isFromCursor: data.isFromCursor ?? (variables.enhancementType === 'continue' || variables.enhancementType === 'auto-complete'),
+          contextText: data.contextText,
+          provider: data.provider,
+          selectionStart: variables.selectionStart,
+          selectionEnd: variables.selectionEnd,
+          originalSelection: variables.originalSelection ?? null,
+          enhancementType: variables.enhancementType ?? '',
+        });
         return;
       }
-      
-      // Store enhancement data (for Quick Actions tab)
-      setLastEnhancement(data.enhancedText);
-      setLastEnhancementData(data);
-      
-      // ALSO update chat messages (for Chat tab)
+
+      const sanitizedText = sanitizeEnhancedText(data.enhancedText) || data.enhancedText?.trim() || "";
+      setLastEnhancement(sanitizedText);
+      const trackingPayload: EnhancementTracking = {
+        ...data,
+        enhancedText: sanitizedText,
+        cursorPosition: data.cursorPosition ?? variables.cursorPosition ?? variables.selectionEnd ?? variables.selectionStart ?? 0,
+        selectionStart: variables.selectionStart,
+        selectionEnd: variables.selectionEnd,
+        originalSelection: variables.originalSelection ?? null,
+        isFromCursor: data.isFromCursor ?? (variables.enhancementType === 'continue' || variables.enhancementType === 'auto-complete'),
+      };
+      setLastEnhancementData(trackingPayload);
+
       if (activeTab === 'chat') {
         setChatMessages(prev => {
-          // Find the last AI message (the "typing" indicator) and update it
           const updated = [...prev];
           const lastAiIndex = updated.findLastIndex(msg => msg.role === 'ai');
           if (lastAiIndex !== -1) {
             updated[lastAiIndex] = {
               role: 'ai',
-              content: data.enhancedText,
+              content: sanitizedText,
               timestamp: new Date(),
-              isStreaming: false
+              isStreaming: false,
             };
           }
           return updated;
         });
       }
-      
-      // Store process notes separately - NOT for document insertion
+
       if (data.processNotes) {
         setProcessNotes(data.processNotes);
       }
       setShowFeedback(true);
       toast({
-        title: "Text Enhanced",
+        title: 'Text Enhanced',
         description: `Quality score: ${data.qualityScore}/10${data.hasBidirectionalContext ? ' (cursor-aware)' : ''}`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/user/current"] });
@@ -198,28 +384,52 @@ export default function AiAssistantPanel({
   });
 
   // Streaming enhancement handler
-  const handleStreamingEnhancement = async (config: { cursorPosition: number; contextAfter: string; isFromCursor: boolean }) => {
+  const handleStreamingEnhancement = async (config: {
+    cursorPosition: number;
+    contextAfter: string;
+    isFromCursor: boolean;
+    contextText?: string;
+    provider?: string;
+    selectionStart?: number;
+    selectionEnd?: number;
+    originalSelection?: string | null;
+    enhancementType?: string;
+  }) => {
     setIsStreaming(true);
     setStreamedText("");
+    setLastCursorPosition(config.cursorPosition);
+    if (typeof config.selectionStart === 'number' && typeof config.selectionEnd === 'number') {
+      setLastSelectionRange({ start: config.selectionStart, end: config.selectionEnd });
+    }
 
     try {
       const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
-      const text = textarea?.value || document.content || "";
+      const docContent = textarea?.value || document.content || "";
+      const selectionEnd = textarea ? textarea.selectionEnd : config.cursorPosition;
+      const insertionPoint = typeof selectionEnd === 'number' ? selectionEnd : config.cursorPosition;
 
-      // Get current provider from localStorage
-      const provider = localStorage.getItem('ai-provider-preference') || 'gemini';
+      const providerPreference = config.provider || localStorage.getItem('ai-provider-preference') || 'gemini';
+
+      const baseContext = config.contextText && config.contextText.trim().length > 0
+        ? config.contextText
+        : docContent.substring(Math.max(0, insertionPoint - 1000), insertionPoint);
+      const contextWindow = baseContext.slice(-1000);
+      const forwardContext = (config.contextAfter && config.contextAfter.length > 0)
+        ? config.contextAfter
+        : docContent.substring(insertionPoint, insertionPoint + 400);
       
       const response = await fetch('/api/ai/enhance/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text,
+          text: contextWindow,
           enhancementType: 'continue',
           documentId: document.id,
           cursorPosition: config.cursorPosition,
           isFromCursor: config.isFromCursor,
-          contextAfter: config.contextAfter,
-          provider // Include provider selection
+          contextAfter: forwardContext,
+          provider: providerPreference,
+          conversationHistory: useChatContext ? chatMessages.slice(-6) : undefined
         }),
         credentials: 'include'
       });
@@ -259,12 +469,18 @@ export default function AiAssistantPanel({
                 }
               }
               if (data.done) {
-                setLastEnhancement(data.fullText);
+                const sanitizedFullText = sanitizeEnhancedText(data.fullText) || data.fullText?.trim() || "";
+                setStreamedText(sanitizedFullText);
+                setLastEnhancement(sanitizedFullText);
                 setLastEnhancementData({
                   ...data,
-                  enhancedText: data.fullText,
+                  enhancedText: sanitizedFullText,
                   cursorPosition: config.cursorPosition,
-                  isFromCursor: config.isFromCursor
+                  isFromCursor: config.isFromCursor,
+                  selectionStart: config.selectionStart,
+                  selectionEnd: config.selectionEnd,
+                  originalSelection: config.originalSelection ?? null,
+                  enhancementType: config.enhancementType,
                 });
                 setShowFeedback(true);
                 
@@ -276,6 +492,7 @@ export default function AiAssistantPanel({
                     if (lastAiIndex !== -1) {
                       updated[lastAiIndex] = {
                         ...updated[lastAiIndex],
+                        content: sanitizedFullText,
                         isStreaming: false
                       };
                     }
@@ -301,27 +518,33 @@ export default function AiAssistantPanel({
   };
 
   const handleEnhancement = (type: string, useStreaming = false) => {
-    // Priority: 1) Selected text, 2) Last 1000 chars, 3) Document content
     let contextText = selectedText;
-    
+
     if (!contextText || contextText.trim().length === 0) {
       const fullContent = document.content || "";
-      // Default to last 1000 characters if no selection
-      if (fullContent.length > 1000) {
-        contextText = fullContent.slice(-1000);
-      } else {
-        contextText = fullContent;
-      }
+      contextText = fullContent.length > 1000 ? fullContent.slice(-1000) : fullContent;
     }
-    
-    // Clear previous process notes
+
+    const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement | null;
+    const selectionStart = textarea?.selectionStart ?? lastSelectionRange?.start ?? lastCursorPosition ?? 0;
+    const selectionEnd = textarea?.selectionEnd ?? lastSelectionRange?.end ?? lastCursorPosition ?? selectionStart;
+    const cursorPosition = selectionEnd;
+    const originalSelection = selectionStart !== selectionEnd
+      ? (textarea ? textarea.value.substring(selectionStart, selectionEnd) : selectedText || null)
+      : null;
+
     setProcessNotes(null);
 
     enhanceTextMutation.mutate({
       text: contextText,
       enhancementType: type,
       documentId: document.id,
-      useStreaming
+      useStreaming,
+      selectionStart,
+      selectionEnd,
+      originalSelection,
+      cursorPosition,
+      conversationHistory: useChatContext ? chatMessages.slice(-6) : undefined,
     });
   };
 
@@ -343,59 +566,163 @@ export default function AiAssistantPanel({
     }
   };
 
-  const applyEnhancement = () => {
-    if (lastEnhancement && onTextUpdate && lastEnhancementData) {
-      // Get the textarea to refresh current content
-      const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement;
-      const currentContent = textarea?.value || document?.content || '';
-      
-      // Check if this was a cursor-aware continuation
-      if (lastEnhancementData.isFromCursor && lastEnhancementData.cursorPosition !== undefined) {
-        // Use the stored cursor position from when the enhancement was requested
-        const cursorPos = lastEnhancementData.cursorPosition;
-        
-        // Insert the enhancement at cursor position without overwriting
-        const beforeCursor = currentContent.substring(0, cursorPos);
-        const afterCursor = currentContent.substring(cursorPos);
-        const newContent = beforeCursor + lastEnhancement + afterCursor;
-        
-        onTextUpdate(newContent);
-        
-        // Set cursor position after the inserted text
+  const applyEnhancement = (overrideContent?: string) => {
+    const rawContent = overrideContent ?? lastEnhancement;
+    if (!rawContent || !onTextUpdate) {
+      return;
+    }
+
+    const enhancementMeta = lastEnhancementData;
+
+    const sanitizeOrFallback = (text: string) => {
+      const cleaned = sanitizeEnhancedText(text);
+      return cleaned.length > 0 ? cleaned : text.trim();
+    };
+
+    let contentToApply = sanitizeOrFallback(rawContent);
+
+    if (!overrideContent && enhancementMeta?.enhancementType && (
+      enhancementMeta.enhancementType.includes('analyze') ||
+      enhancementMeta.enhancementType.includes('suggestion')
+    )) {
+      toast({
+        title: "Analysis Complete",
+        description: "Review the suggestions without modifying your content.",
+      });
+      return;
+    }
+
+    const textarea = window.document.querySelector('[data-testid="textarea-document-content"]') as HTMLTextAreaElement | null;
+    const currentContent = textarea?.value ?? document?.content ?? '';
+
+    const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+    const resolveRange = () => {
+      if (overrideContent) {
         if (textarea) {
-          setTimeout(() => {
-            const newCursorPos = cursorPos + lastEnhancement.length;
-            textarea.setSelectionRange(newCursorPos, newCursorPos);
-            textarea.focus();
-          }, 10);
+          const start = textarea.selectionStart ?? currentContent.length;
+          const end = textarea.selectionEnd ?? start;
+          return { start, end };
         }
-      } else if (selectedText && currentContent.includes(selectedText)) {
-        // Replace only the selected text, preserving the rest
-        const newContent = currentContent.replace(selectedText, lastEnhancement);
-        onTextUpdate(newContent);
-      } else {
-        // Fallback: append or replace based on enhancement type
-        // For analysis/suggestions, don't replace the entire content
-        if (lastEnhancementData.enhancementType?.includes('analyze') || 
-            lastEnhancementData.enhancementType?.includes('suggestion')) {
-          // Don't replace content for analytical enhancements
-          toast({
-            title: "Analysis Complete",
-            description: "Review the suggestions without modifying your content.",
-          });
-        } else {
-          // For other enhancements, use the enhanced text
-          onTextUpdate(lastEnhancement);
+        if (lastSelectionRange) {
+          return lastSelectionRange;
+        }
+        if (typeof lastCursorPosition === 'number') {
+          return { start: lastCursorPosition, end: lastCursorPosition };
         }
       }
-      
-      setLastEnhancement(null);
-      setLastEnhancementData(null);
+
+      if (!overrideContent && lastEnhancementData) {
+        if (typeof lastEnhancementData.selectionStart === 'number' && typeof lastEnhancementData.selectionEnd === 'number') {
+          return {
+            start: lastEnhancementData.selectionStart,
+            end: lastEnhancementData.selectionEnd,
+          };
+        }
+        if (typeof lastEnhancementData.cursorPosition === 'number') {
+          return {
+            start: lastEnhancementData.cursorPosition,
+            end: lastEnhancementData.cursorPosition,
+          };
+        }
+      }
+
+      if (textarea) {
+        const start = textarea.selectionStart ?? currentContent.length;
+        const end = textarea.selectionEnd ?? start;
+        return { start, end };
+      }
+
+      if (lastSelectionRange) {
+        return lastSelectionRange;
+      }
+
+      if (typeof lastCursorPosition === 'number') {
+        return { start: lastCursorPosition, end: lastCursorPosition };
+      }
+
+      return { start: currentContent.length, end: currentContent.length };
+    };
+
+    const range = resolveRange();
+    let start = clamp(range.start ?? 0, 0, currentContent.length);
+    let end = clamp(range.end ?? start, start, currentContent.length);
+
+    const expectedOriginal = !overrideContent
+      ? enhancementMeta?.originalSelection ?? null
+      : end > start
+        ? currentContent.slice(start, end)
+        : null;
+    const currentSegment = currentContent.slice(start, end);
+
+    if (!overrideContent && enhancementMeta?.isFromCursor) {
+      const beforeContext = currentContent.slice(0, start);
+      const trimmed = trimContinuationPrefix(contentToApply, beforeContext);
+      if (trimmed.length < contentToApply.length) {
+        contentToApply = trimmed;
+      }
+    }
+
+    if (end > start && expectedOriginal) {
+      const trimmed = trimSelectionPrefix(contentToApply, expectedOriginal);
+      if (trimmed.length < contentToApply.length) {
+        contentToApply = trimmed;
+        end = start + expectedOriginal.length; // keep original bounds for duplicate check
+      }
+    }
+
+    if (end > start && expectedOriginal && currentSegment !== expectedOriginal) {
+      end = start;
+    }
+
+    const newContent = `${currentContent.slice(0, start)}${contentToApply}${currentContent.slice(end)}`;
+
+    if (newContent === currentContent) {
+      toast({
+        title: "Nothing Applied",
+        description: "The document already contains this suggestion.",
+      });
+      return;
+    }
+
+    const insertionEnd = start + contentToApply.length;
+    const updateMeta: ContentUpdateMeta = {
+      source: overrideContent ? 'ai-chat-apply' : 'ai-enhancement',
+      cursorPosition: insertionEnd,
+      selectionStart: start,
+      selectionEnd: insertionEnd,
+      originalSelection: expectedOriginal ?? (end > start ? currentSegment : null),
+    };
+
+    onTextUpdate(newContent, updateMeta);
+
+    setLastCursorPosition(insertionEnd);
+    setLastSelectionRange({ start: insertionEnd, end: insertionEnd });
+
+    if (textarea) {
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(insertionEnd, insertionEnd);
+      }, 10);
+    }
+
+    setStreamedText('');
+    setLastEnhancement(null);
+    setLastEnhancementData(null);
+
+    if (!overrideContent) {
+      setShowFeedback(false);
+      setProcessNotes(null);
       toast({
         title: "Enhancement Applied",
-        description: lastEnhancementData.isFromCursor 
-          ? "Text continuation added at cursor position." 
+        description: enhancementMeta?.isFromCursor
+          ? "Text continuation added at cursor position."
           : "The enhanced text has been applied to your document.",
+      });
+    } else {
+      toast({
+        title: "Applied to Document",
+        description: "AI suggestion inserted at the current selection.",
       });
     }
   };
@@ -403,6 +730,7 @@ export default function AiAssistantPanel({
   const dismissSuggestion = () => {
     setCurrentSuggestion("");
     setLastEnhancement(null);
+    setLastEnhancementData(null);
     setShowFeedback(false);
     setProcessNotes(null);
     setStreamedText("");
@@ -514,37 +842,6 @@ export default function AiAssistantPanel({
     }
   };
 
-  const handleChatSubmitOld = (message?: string) => {
-    const messageText = message || chatInput.trim();
-    if (!messageText) return;
-
-    // Add user message
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: messageText,
-      timestamp: new Date()
-    };
-    setChatMessages(prev => [...prev, userMessage]);
-    setChatInput("");
-
-    // Add AI "thinking" message
-    const aiMessage: ChatMessage = {
-      role: 'ai',
-      content: '',
-      timestamp: new Date(),
-      isStreaming: true
-    };
-    setChatMessages(prev => [...prev, aiMessage]);
-
-    // Trigger enhancement (reuse existing mutation)
-    enhanceTextMutation.mutate({
-      text: selectedText || document.content || '',
-      enhancementType: messageText, // Use the chat message as the enhancement type
-      documentId: document.id,
-      useStreaming: true
-    });
-  };
-
   const handleQuickAction = (type: string) => {
     // Quick actions can optionally add to chat
     if (activeTab === 'chat') {
@@ -638,6 +935,44 @@ export default function AiAssistantPanel({
         )}
         <div ref={chatEndRef} />
       </div>
+
+      {/* Chat Context Indicator & Toggle */}
+      {chatMessages.length > 0 && (
+        <div className="px-4 py-2 border-t border-neutral-200 bg-neutral-50">
+          <div className="flex items-center justify-between mb-2">
+            <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useChatContext}
+                onChange={(e) => setUseChatContext(e.target.checked)}
+                className="rounded border-neutral-300"
+              />
+              <span className="font-medium">Use chat to guide AI enhancements</span>
+            </label>
+            {useChatContext && chatMessages.slice(-6).length > 0 && (
+              <span className="text-xs text-accent font-medium">
+                {chatMessages.slice(-6).length} messages active
+              </span>
+            )}
+          </div>
+          
+          {useChatContext && chatMessages.slice(-6).length > 0 && (
+            <div className="bg-white border border-accent/20 rounded p-2 max-h-24 overflow-y-auto">
+              <div className="text-xs text-neutral-500 mb-1">Recent context for AI:</div>
+              <div className="space-y-1">
+                {chatMessages.slice(-6).map((msg, idx) => (
+                  <div key={idx} className="text-xs truncate">
+                    <span className={msg.role === 'user' ? 'text-accent font-medium' : 'text-neutral-600'}>
+                      {msg.role === 'user' ? '→' : '←'}
+                    </span>
+                    <span className="ml-1 text-neutral-700">{msg.content.substring(0, 60)}{msg.content.length > 60 ? '...' : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Chat Input */}
       <div className="p-4 border-t border-neutral-200">
@@ -762,10 +1097,10 @@ export default function AiAssistantPanel({
             <Button 
               variant="ghost" 
               size="sm"
-              onClick={() => setPanelMode(panelMode === 'lens' ? 'normal' : 'lens')}
+              onClick={() => setPanelMode('lens')}
               title="AI Lens Mode"
             >
-              <i className={`fas ${panelMode === 'lens' ? 'fa-compress' : 'fa-expand'} text-sm`}></i>
+              <i className="fas fa-expand text-sm"></i>
             </Button>
             <Button 
               variant="ghost" 
@@ -883,6 +1218,44 @@ export default function AiAssistantPanel({
               <div ref={chatEndRef} />
             </div>
 
+            {/* Chat Context Indicator & Toggle */}
+            {chatMessages.length > 0 && (
+              <div className="px-4 py-2 border-t border-neutral-200 bg-neutral-50">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="flex items-center gap-2 text-xs text-neutral-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useChatContext}
+                      onChange={(e) => setUseChatContext(e.target.checked)}
+                      className="rounded border-neutral-300"
+                    />
+                    <span className="font-medium">Use chat to guide AI enhancements</span>
+                  </label>
+                  {useChatContext && chatMessages.slice(-6).length > 0 && (
+                    <span className="text-xs text-accent font-medium">
+                      {chatMessages.slice(-6).length} messages active
+                    </span>
+                  )}
+                </div>
+                
+                {useChatContext && chatMessages.slice(-6).length > 0 && (
+                  <div className="bg-white border border-accent/20 rounded p-2 max-h-24 overflow-y-auto">
+                    <div className="text-xs text-neutral-500 mb-1">Recent context for AI:</div>
+                    <div className="space-y-1">
+                      {chatMessages.slice(-6).map((msg, idx) => (
+                        <div key={idx} className="text-xs truncate">
+                          <span className={msg.role === 'user' ? 'text-accent font-medium' : 'text-neutral-600'}>
+                            {msg.role === 'user' ? '→' : '←'}
+                          </span>
+                          <span className="ml-1 text-neutral-700">{msg.content.substring(0, 60)}{msg.content.length > 60 ? '...' : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Chat Input */}
             <div className="p-4 border-t border-neutral-200">
               <div className="flex gap-2">
@@ -974,7 +1347,7 @@ export default function AiAssistantPanel({
                   <>
                     <Button
                       size="sm"
-                      onClick={applyEnhancement}
+                      onClick={() => applyEnhancement()}
                       className="text-xs"
                     >
                       Apply Enhancement

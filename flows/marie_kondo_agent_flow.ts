@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { createAIClient } from '@/lib/ai-client';
 import { globalCommunityMemory } from './community_memory_pool';
 import { globalAgentRegistry } from './agent_container_system';
+import { Logger, MarieMessages } from '../server/logger';
 
 // Cleanup task categories
 export const CleanupTaskSchema = z.object({
@@ -62,6 +63,11 @@ export type MarieKondoOutput = z.infer<typeof MarieKondoOutputSchema>;
  */
 export async function marieKondoAgent(input: MarieKondoInput): Promise<MarieKondoOutput> {
   const startTime = Date.now();
+  
+  // Simple, child-readable log
+  if (input.mode !== 'dormant') {
+    Logger.marie(MarieMessages.waking());
+  }
   
   // Log that Marie Kondo has been awakened
   globalCommunityMemory.logAgentAction({
@@ -121,6 +127,8 @@ export async function marieKondoAgent(input: MarieKondoInput): Promise<MarieKond
  * Handle dormant mode - Marie Kondo stays completely out of the way
  */
 function handleDormantMode(): MarieKondoOutput {
+  Logger.marie(MarieMessages.sleeping());
+  
   return {
     status: 'staying-out-of-the-fucking-way',
     mode: 'dormant',
@@ -141,6 +149,9 @@ async function handlePostProcessCleanup(input: MarieKondoInput): Promise<MarieKo
   const completedTasks: CleanupTask[] = [];
   let totalBytesCleared = 0;
   const systemImprovements: string[] = [];
+
+  Logger.marie(MarieMessages.startingCleanup());
+  Logger.marie(MarieMessages.beastMode());
 
   // FULL BEAST MODE CLEANUP - Marie Kondo can be as thorough as she wants
   
@@ -186,6 +197,11 @@ async function handlePostProcessCleanup(input: MarieKondoInput): Promise<MarieKo
   // Calculate joy level based on how much was cleaned
   const joyLevel = Math.min(10, Math.floor(totalBytesCleared / (1024 * 1024)) + 5); // More cleanup = more joy
 
+  // Marie is satisfied with her work
+  const totalMB = Math.round(totalBytesCleared / (1024 * 1024));
+  Logger.marie(MarieMessages.cleanupDone(`${totalMB}MB`), true); // sparkJoy = true
+  Logger.marie(MarieMessages.satisfied());
+
   return {
     status: 'post-process-cleanup-complete',
     mode: 'post-process-cleanup',
@@ -210,6 +226,9 @@ async function handleEmergencyResponse(input: MarieKondoInput): Promise<MarieKon
   const completedTasks: CleanupTask[] = [];
   let totalBytesCleared = 0;
   const systemImprovements: string[] = [];
+
+  Logger.marie(MarieMessages.emergency());
+  Logger.marie(MarieMessages.beastMode());
 
   // EMERGENCY CLEANUP PROTOCOL
   
@@ -260,6 +279,10 @@ async function cleanupCaches(workspaceId?: string): Promise<CleanupTask> {
   // Simulate cache cleanup
   const bytesCleared = Math.floor(Math.random() * 50 * 1024 * 1024); // 0-50MB
   
+  // Marie thanks the data before yeeting it
+  const sizeMB = Math.round(bytesCleared / (1024 * 1024));
+  Logger.marie(MarieMessages.thankingCache(`${sizeMB}MB`));
+  
   return {
     taskId: `cache-cleanup-${Date.now()}`,
     category: 'cache',
@@ -302,6 +325,10 @@ async function optimizeMemoryPools(): Promise<CleanupTask> {
 async function manageLogFiles(): Promise<CleanupTask> {
   const bytesCleared = Math.floor(Math.random() * 100 * 1024 * 1024); // 0-100MB
   
+  // Marie thanks the old logs
+  const sizeMB = Math.round(bytesCleared / (1024 * 1024));
+  Logger.marie(MarieMessages.thankingLogs(`${sizeMB}MB`));
+  
   return {
     taskId: `log-management-${Date.now()}`,
     category: 'logs',
@@ -321,6 +348,10 @@ async function manageLogFiles(): Promise<CleanupTask> {
 async function cleanupTemporaryFiles(): Promise<CleanupTask> {
   const bytesCleared = Math.floor(Math.random() * 25 * 1024 * 1024); // 0-25MB
   
+  // Marie thanks the temp files
+  const sizeMB = Math.round(bytesCleared / (1024 * 1024));
+  Logger.marie(MarieMessages.thankingTempFiles(`${sizeMB}MB`));
+  
   return {
     taskId: `temp-cleanup-${Date.now()}`,
     category: 'temp-files',
@@ -338,6 +369,8 @@ async function cleanupTemporaryFiles(): Promise<CleanupTask> {
  * Organize configuration files
  */
 async function organizeConfigurations(): Promise<CleanupTask> {
+  Logger.marie(MarieMessages.organizing('configuration files'));
+  
   return {
     taskId: `config-organize-${Date.now()}`,
     category: 'config',
@@ -390,6 +423,10 @@ async function cleanupOrphanedProcesses(): Promise<CleanupTask> {
  */
 async function emergencyMemoryCleanup(): Promise<CleanupTask> {
   const bytesCleared = Math.floor(Math.random() * 200 * 1024 * 1024); // 0-200MB emergency cleanup
+  
+  // Emergency yeet!
+  const sizeMB = Math.round(bytesCleared / (1024 * 1024));
+  Logger.marie(MarieMessages.thankingMemory(`${sizeMB}MB`));
   
   return {
     taskId: `emergency-memory-${Date.now()}`,

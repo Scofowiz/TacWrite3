@@ -8,20 +8,20 @@ import PremiumUpgradeModal from "@/components/modals/premium-upgrade-modal";
 import { Document, User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { UndoRedoProvider, useUndoRedo, ContentUpdateMeta } from "@/context/undo-redo-context";
 
-export default function EditorView() {
+function EditorViewContent() {
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [aiAssistantVisible, setAiAssistantVisible] = useState(true);
   const [narrativeMode, setNarrativeMode] = useState("continue");
   const [documentContent, setDocumentContent] = useState("");
   const [documentTitle, setDocumentTitle] = useState("");
-  const [undoHistory, setUndoHistory] = useState<string[]>([]);
-  const [redoHistory, setRedoHistory] = useState<string[]>([]);
   const [lastSavedContent, setLastSavedContent] = useState("");
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+  const { recordChange, undo, redo, reset, canUndo, canRedo, setCurrentMeta } = useUndoRedo();
 
   const { data: user } = useQuery<User>({
     queryKey: ["/api/user/current"],
@@ -82,6 +82,9 @@ export default function EditorView() {
     setSelectedDocumentId(document.id);
     setDocumentTitle(document.title);
     setDocumentContent(document.content);
+    setLastSavedContent(document.content);
+    reset();
+    setCurrentMeta(null);
   };
 
   const handleNewDocument = () => {
@@ -107,8 +110,8 @@ export default function EditorView() {
     setDocumentTitle("");
     setLastSavedContent("");
     setSaveStatus("saved");
-    setUndoHistory([]);
-    setRedoHistory([]);
+    reset();
+    setCurrentMeta(null);
   };
 
   const saveDocument = useCallback((content: string, immediate = false) => {
@@ -136,39 +139,31 @@ export default function EditorView() {
     );
   }, [selectedDocumentId, updateDocumentMutation.mutate, toast]);
 
-  const handleContentChange = (content: string, skipHistory = false) => {
-    // Add to undo history if this is a user action (not undo/redo)
-    // Also check that content has actually changed
+  const handleContentChange = (content: string, skipHistory = false, meta?: ContentUpdateMeta | null) => {
     if (!skipHistory && documentContent !== content) {
-      // Only add to history if we have existing content (don't save empty initial states)
-      if (documentContent.length > 0) {
-        setUndoHistory(prev => [...prev.slice(-49), documentContent]); // Keep last 50 states
+      if (documentContent.length > 0 || content.length > 0) {
+        recordChange(documentContent, meta ?? undefined);
       }
-      setRedoHistory([]); // Clear redo history on new change
     }
-    
+
     setDocumentContent(content);
     setSaveStatus("unsaved");
-    
-    // Clear previous timeout
+    setCurrentMeta(meta ?? { source: "editor" });
+
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current);
     }
-    
-    // Auto-save after 2 seconds of no typing
+
     autoSaveTimeout.current = setTimeout(() => {
       saveDocument(content);
     }, 2000);
   };
 
   const handleUndo = () => {
-    if (undoHistory.length === 0) return;
-    
-    const previousState = undoHistory[undoHistory.length - 1];
-    setRedoHistory(prev => [documentContent, ...prev.slice(0, 49)]);
-    setUndoHistory(prev => prev.slice(0, -1));
-    handleContentChange(previousState, true);
-    
+    const snapshot = undo(documentContent);
+    if (!snapshot) return;
+
+    handleContentChange(snapshot.value, true, snapshot.meta ?? null);
     toast({
       title: "Undone",
       description: "Last change has been undone",
@@ -176,13 +171,10 @@ export default function EditorView() {
   };
 
   const handleRedo = () => {
-    if (redoHistory.length === 0) return;
-    
-    const nextState = redoHistory[0];
-    setUndoHistory(prev => [...prev.slice(-49), documentContent]);
-    setRedoHistory(prev => prev.slice(1));
-    handleContentChange(nextState, true);
-    
+    const snapshot = redo(documentContent);
+    if (!snapshot) return;
+
+    handleContentChange(snapshot.value, true, snapshot.meta ?? null);
     toast({
       title: "Redone",
       description: "Change has been restored",
@@ -201,11 +193,10 @@ export default function EditorView() {
       setDocumentContent(selectedDocument.content);
       setLastSavedContent(selectedDocument.content);
       setSaveStatus("saved");
-      // Reset undo/redo history when switching documents
-      setUndoHistory([]);
-      setRedoHistory([]);
+      reset();
+      setCurrentMeta(null);
     }
-  }, [selectedDocument]);
+  }, [selectedDocument, reset, setCurrentMeta]);
 
   // Periodic auto-save every 30 seconds
   useEffect(() => {
@@ -239,25 +230,28 @@ export default function EditorView() {
   // Add keyboard shortcuts for undo/redo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          handleUndo();
-        } else if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) {
-          e.preventDefault();
-          handleRedo();
-        }
+      if (!(e.ctrlKey || e.metaKey)) return;
+
+      if (e.key === 'z' && !e.shiftKey) {
+        if (!canUndo) return;
+        e.preventDefault();
+        handleUndo();
+      } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+        if (!canRedo) return;
+        e.preventDefault();
+        handleRedo();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [undoHistory, redoHistory, documentContent]);
+  }, [canUndo, canRedo, handleUndo, handleRedo]);
 
-  // Select first document by default
-  if (documents && documents.length > 0 && !selectedDocumentId) {
-    setSelectedDocumentId(documents[0].id);
-  }
+  useEffect(() => {
+    if (documents && documents.length > 0 && !selectedDocumentId) {
+      setSelectedDocumentId(documents[0].id);
+    }
+  }, [documents, selectedDocumentId]);
 
   return (
     <div className="flex h-screen bg-neutral-50">
@@ -279,8 +273,8 @@ export default function EditorView() {
           aiAssistantVisible={aiAssistantVisible}
           onUndo={handleUndo}
           onRedo={handleRedo}
-          canUndo={undoHistory.length > 0}
-          canRedo={redoHistory.length > 0}
+          canUndo={canUndo}
+          canRedo={canRedo}
           saveStatus={saveStatus}
           onManualSave={() => saveDocument(documentContent, true)}
         />
@@ -334,8 +328,8 @@ export default function EditorView() {
                 document={selectedDocument}
                 onClose={() => setAiAssistantVisible(false)}
                 onPremiumFeature={handlePremiumFeature}
-                onTextUpdate={(content) => {
-                  handleContentChange(content);
+                onTextUpdate={(content, meta) => {
+                  handleContentChange(content, false, meta ?? null);
                   // Immediate save after AI enhancement
                   setTimeout(() => saveDocument(content, true), 100);
                 }}
@@ -359,5 +353,13 @@ export default function EditorView() {
         onClose={() => setShowPremiumModal(false)}
       />
     </div>
+  );
+}
+
+export default function EditorView() {
+  return (
+    <UndoRedoProvider>
+      <EditorViewContent />
+    </UndoRedoProvider>
   );
 }

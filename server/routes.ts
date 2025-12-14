@@ -281,7 +281,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
 
-      const { text, enhancementType, documentId, agentType = "writing-assistant", cursorPosition, isFromCursor, contextAfter, stream = false, provider = 'gemini' } = req.body;
+      const { text, enhancementType, documentId, agentType = "writing-assistant", cursorPosition, isFromCursor, contextAfter, stream = false, provider = 'gemini', conversationHistory } = req.body;
 
       // Use AI client factory for dynamic provider selection
       console.log(`[AI Enhance] Provider from request body: ${provider}`);
@@ -321,6 +321,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const memoryGuidance = goodPatterns ? `\n\nLearning from positive feedback: ${goodPatterns}` : '';
 
+      // Format conversation history for context
+      const chatContext = conversationHistory && conversationHistory.length > 0
+        ? `\n\nRECENT CHAT CONVERSATION:\n${conversationHistory.map((msg: any) => 
+            `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.content}`
+          ).join('\n')}\n\nIMPORTANT: Use this conversation context to guide your enhancement. If the user has given specific instructions or preferences in chat, follow them.`
+        : '';
+
       let prompt = "";
 
       // Handle cursor-aware continuations with BIDIRECTIONAL awareness
@@ -346,7 +353,7 @@ STEP 2 - DRAFT: Write content that fits seamlessly
 STEP 3 - REFLECT: Does it bridge properly? Is the voice consistent?
 STEP 4 - REFINE: Polish the content
 
-${documentContext}${memoryGuidance}
+${documentContext}${memoryGuidance}${chatContext}
 
 CRITICAL: Return ONLY valid JSON. The "output" field should contain ONLY the new text (no process notes, no summaries). The "process" field contains your analysis (will be shown separately to user, not inserted into document).
 
@@ -365,7 +372,7 @@ RESPOND WITH JSON:`;
 3. REFLECT: Does it improve understanding?
 4. REFINE: Polish the final version
 
-${documentContext}${memoryGuidance}
+${documentContext}${memoryGuidance}${chatContext}
 
 Text to enhance: "${enhancementContext.text}"${jsonInstruction}`;
             break;
@@ -736,7 +743,11 @@ Text to enhance: "${enhancementContext.text}"${jsonInstruction}`;
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid data", errors: error.errors });
       }
-      res.status(500).json({ message: "Failed to enhance text" });
+      console.error('[AI Enhance] Error details:', error);
+      res.status(500).json({ 
+        message: "Failed to enhance text",
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
@@ -793,20 +804,13 @@ Keep your response conversational (2-4 sentences unless asked for more detail). 
       console.log('[AI Chat] Processing:', message);
 
       try {
-        const aiClient = createAIServerClient();
-        const stream = await aiClient.chat({
-          messages: [{ role: 'user', content: chatPrompt }],
-          stream: true
-        });
-
+        const aiClient = createAIServerClient('gemini');
+        
         let fullResponse = '';
-
-        for await (const chunk of stream) {
-          const text = chunk.choices[0]?.delta?.content || '';
-          if (text) {
-            fullResponse += text;
-            res.write(`data: ${JSON.stringify({ chunk: text })}\n\n`);
-          }
+        
+        for await (const chunk of aiClient.generateStream(chatPrompt, { temperature: 0.7, maxTokens: 1024 })) {
+          fullResponse += chunk;
+          res.write(`data: ${JSON.stringify({ chunk: chunk })}\n\n`);
         }
 
         res.write(`data: ${JSON.stringify({ done: true, fullText: fullResponse })}\n\n`);
@@ -832,7 +836,7 @@ Keep your response conversational (2-4 sentences unless asked for more detail). 
         return res.status(404).json({ message: "User not found" });
       }
 
-      const { text, enhancementType, documentId, cursorPosition, isFromCursor, contextAfter } = req.body;
+      const { text, enhancementType, documentId, cursorPosition, isFromCursor, contextAfter, conversationHistory } = req.body;
 
       // Set up SSE headers
       res.setHeader('Content-Type', 'text/event-stream');
@@ -856,6 +860,13 @@ Keep your response conversational (2-4 sentences unless asked for more detail). 
       const contextBefore = text.substring(Math.max(0, text.length - 600));
       const contextAfterText = contextAfter ? contextAfter.substring(0, 400) : "";
 
+      // Format conversation history for context
+      const chatContext = conversationHistory && conversationHistory.length > 0
+        ? `\n\nRECENT CHAT CONVERSATION:\n${conversationHistory.map((msg: any) => 
+            `${msg.role === 'user' ? 'User' : 'AI'}: ${msg.content}`
+          ).join('\n')}\n\nIMPORTANT: Use this conversation context to guide your continuation. If the user has given specific instructions or preferences in chat, follow them.`
+        : '';
+
       const prompt = `CRITICAL: You are continuing text from a cursor position. Write NEW content that flows naturally from where the text left off.
 
 CONTEXT BEFORE CURSOR (this is what comes right before where you continue):
@@ -864,7 +875,7 @@ CONTEXT BEFORE CURSOR (this is what comes right before where you continue):
 ${contextAfterText ? `CONTEXT AFTER CURSOR (you must bridge smoothly to this):
 "${contextAfterText}"` : "No text after cursor - you are appending to the end."}
 
-${documentContext}
+${documentContext}${chatContext}
 
 RULES:
 1. Start writing naturally as a continuation - DO NOT start with punctuation like commas or periods
