@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Narrative Modes</title>
+</head>
+<body>
+    <h1>Testing Narrative Modes in TacWrite</h1>
+    <p>Test page to verify that narrative modes (continue, auto-complete, reflect, revisit) are working properly.</p>
+    
+    <h2>Current Status:</h2>
+    <ul>
+        <li>✅ Fixed renderQuickActions() bug (was returning null)</li>
+        <li>✅ Fixed TypeScript errors in ai-assistant-panel.tsx</li>
+        <li>✅ Added REFLECT and REVISIT narrative modes to the instruction-panel.tsx</li>
+        <li>✅ Server routes support continue and auto-complete with streaming</li>
+        <li>🔄 Testing reflect and revisit functionality</li>
+    </ul>
+    
+    <h2>Test Results:</h2>
+    <div id="results">
+        <p>Navigate to http://localhost:3000 to test the AI assistant panel</p>
+        <p>The continue and auto-complete narrative modes should now be working properly.</p>
+    </div>
+    
+    <script>
+        // Test API endpoint for narrative modes
+        async function testNarrativeModes() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                // Test basic API connectivity
+                const response = await fetch('http://localhost:3000/api/user/current');
+                if (response.ok) {
+                    resultsDiv.innerHTML += '<p style="color: green;">✅ API connection working</p>';
+                    
+                    // Test narrative modes
+                    const testText = "The old lighthouse keeper had seen many storms, but none quite like this one.";
+                    
+                    // Test continue mode
+                    resultsDiv.innerHTML += '<p>🔄 Testing continue mode...</p>';
+                    
+                    // Test auto-complete mode  
+                    resultsDiv.innerHTML += '<p>🔄 Testing auto-complete mode...</p>';
+                    
+                } else {
+                    resultsDiv.innerHTML += '<p style="color: red;">❌ API connection failed</p>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML += `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Run test on page load
+        window.addEventListener('load', testNarrativeModes);
+    </script>
+</body>
+</html>

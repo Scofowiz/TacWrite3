@@ -5,6 +5,14 @@ server/public
 vite.config.ts.*
 *.tar.gz
 
+# Environment files (CRITICAL SECURITY)
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
 
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
